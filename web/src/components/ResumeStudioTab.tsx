@@ -30,6 +30,8 @@ export function ResumeStudioTab() {
   const [rendering, setRendering] = useState(false)
   const [out, setOut] = useState<StudioRender | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [field, setField] = useState<string | null>(null)
+  const [suggested, setSuggested] = useState<'rendercv' | 'docx' | null>(null)
 
   // (Re)load the starting YAML whenever the source changes.
   useEffect(() => {
@@ -43,6 +45,8 @@ export function ResumeStudioTab() {
         if (cancelled) return
         if (r.error) setError(r.error)
         else setYaml(r.yaml ?? '')
+        setField(r.field ?? null)
+        setSuggested(r.suggested_renderer ?? null)
       })
       .catch((e) => !cancelled && setError(String((e as Error).message ?? e)))
       .finally(() => !cancelled && setLoadingYaml(false))
@@ -118,7 +122,11 @@ export function ResumeStudioTab() {
                 )}
               </select>
             </label>
-            <Button onClick={render} disabled={rendering || loadingYaml || !yaml.trim()}>
+            <Button
+              variant={suggested === 'docx' ? 'outline' : 'default'}
+              onClick={render}
+              disabled={rendering || loadingYaml || !yaml.trim()}
+            >
               {rendering ? (
                 <>
                   <Loader2 className="animate-spin" /> Typesetting…
@@ -129,10 +137,25 @@ export function ResumeStudioTab() {
                 </>
               )}
             </Button>
-            <Button variant="outline" onClick={downloadDocx} disabled={loadingYaml}>
+            <Button
+              variant={suggested === 'docx' ? 'default' : 'outline'}
+              onClick={downloadDocx}
+              disabled={loadingYaml}
+            >
               <FileText /> Download .docx
             </Button>
           </div>
+          {suggested && (
+            <p className="text-xs text-muted-foreground">
+              Suggested template{field ? ` for ${field}` : ''}:{' '}
+              <span className="font-medium text-foreground">
+                {suggested === 'rendercv'
+                  ? 'Typst PDF — CS/tech format'
+                  : 'Word .docx — business/VMH format'}
+              </span>
+              . This is just a default — use either output.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Application folders appear in the picker once generated with{' '}
             <code className="rounded bg-muted px-1 font-mono">python -m job_bot.generate --renderer rendercv</code>.

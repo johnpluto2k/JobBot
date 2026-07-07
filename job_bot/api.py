@@ -364,6 +364,33 @@ def _studio_build_resume():
 PROFILE_SOURCE = "profile"
 
 
+def _studio_field_and_renderer(source: str) -> tuple[str, str]:
+    """(career field, suggested renderer) for a studio source. Reads an
+    application folder's meta.json when present; otherwise classifies the first
+    target role from the master profile."""
+    from .applications import classify_field
+    from .ats_engine import load_profile
+    from .template_select import renderer_for_field
+
+    if source != PROFILE_SOURCE:
+        meta = config.OUTPUT_DIR / "applications" / source / "meta.json"
+        if meta.is_file():
+            try:
+                m = json.loads(meta.read_text(encoding="utf-8"))
+                field = m.get("field")
+                renderer = m.get("renderer")
+                if field and renderer in ("rendercv", "docx"):
+                    return field, renderer
+                if field:
+                    return field, renderer_for_field(field)
+            except Exception:
+                pass
+    prof = load_profile(None)
+    targets = (prof.get("targets") or {}).get("target_roles") or ["Analyst"]
+    field = classify_field(targets[0])
+    return field, renderer_for_field(field)
+
+
 @app.get("/api/resume-studio/sources")
 def studio_sources() -> dict:
     """Places a studio session can start from: the master profile, or any
@@ -380,18 +407,23 @@ def studio_sources() -> dict:
 
 @app.get("/api/resume-studio/yaml")
 def studio_yaml(source: str = PROFILE_SOURCE) -> dict:
-    """The starting RenderCV YAML for a source (JSON text — valid YAML)."""
+    """The starting RenderCV YAML for a source (JSON text — valid YAML), plus the
+    classified career `field` and `suggested_renderer` so the UI can default its
+    template control to match the application's field."""
+    field, suggested = _studio_field_and_renderer(source)
     if source == PROFILE_SOURCE:
         from .render_rendercv import resume_to_rendercv_dict
 
         resume, _ = _studio_build_resume()
         return {"yaml": json.dumps(resume_to_rendercv_dict(resume),
-                                   indent=2, ensure_ascii=False)}
+                                   indent=2, ensure_ascii=False),
+                "field": field, "suggested_renderer": suggested}
     path = config.OUTPUT_DIR / "applications" / source / "resume.yaml"
     if not path.is_file() or path.resolve().parent.parent != \
             (config.OUTPUT_DIR / "applications").resolve():
         return {"error": f"no resume.yaml for '{source}'"}
-    return {"yaml": path.read_text(encoding="utf-8")}
+    return {"yaml": path.read_text(encoding="utf-8"),
+            "field": field, "suggested_renderer": suggested}
 
 
 class StudioRenderRequest(BaseModel):

@@ -125,6 +125,20 @@ def test_rendercv_pdf_one_page_and_parseable():
     print("ok: rendercv pdf (1 page, clean text layer)")
 
 
+def test_renderer_for_field():
+    """Field -> template mapping: tech fields render on the CS/tech (rendercv)
+    template, business/audit fields keep the VMH docx template."""
+    from job_bot.template_select import renderer_for_field
+    assert renderer_for_field("Data & Analytics") == "rendercv"
+    assert renderer_for_field("Software / Engineering") == "rendercv"
+    assert renderer_for_field("Tax") == "docx"
+    assert renderer_for_field("Audit & Assurance") == "docx"
+    # IT Audit / Tech Risk is intentionally business/VMH by default.
+    assert renderer_for_field("IT Audit / Tech Risk") == "docx"
+    assert renderer_for_field("Other") == "docx"
+    print("ok: renderer_for_field field->template mapping")
+
+
 if __name__ == "__main__":
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -133,4 +147,5 @@ if __name__ == "__main__":
     test_tailor_and_docx()
     test_reportlab_pdf_one_page()
     test_rendercv_pdf_one_page_and_parseable()
+    test_renderer_for_field()
     print("\nall pipeline regression tests passed")

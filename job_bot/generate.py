@@ -14,17 +14,20 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
 
 from . import config
+from .applications import classify_field
 from .ats_engine import load_profile, profile_text, score
 from .cover_letter import cover_letter_to_docx, generate_cover_letter
 from .jd_parser import parse_jd
 from .render_docx import render_docx
 from .render_pdf import render_pdf
 from .tailor import resume_to_text, tailor_resume
+from .template_select import renderer_for_field
 
 
 def _slug(text: str) -> str:
@@ -71,9 +74,11 @@ def main() -> None:
     ap.add_argument("--company", help="Override company name")
     ap.add_argument("--profile", type=Path, help="Path to master_profile.json")
     ap.add_argument("--no-llm", action="store_true", help="Force heuristic (no Claude rewrite)")
-    ap.add_argument("--renderer", choices=["docx", "rendercv"], default="docx",
-                    help="PDF pipeline: docx=reportlab (default), rendercv=YAML->LaTeX "
-                         "(git-diffable resume.yaml, Overleaf-compatible)")
+    ap.add_argument("--renderer", choices=["docx", "rendercv"], default=None,
+                    help="PDF pipeline: docx=reportlab (VMH/business template), "
+                         "rendercv=RenderCV/Typst (CS/tech template, git-diffable "
+                         "resume.yaml). Default: auto-picked from the JD's career "
+                         "field (tech fields -> rendercv, else docx).")
     ap.add_argument("--out", type=Path, help="Output directory (default data/applications/<slug>)")
     args = ap.parse_args()
 
@@ -85,11 +90,19 @@ def main() -> None:
     if args.company:
         job.company = args.company
 
+    # Template auto-selection: the JD's career field picks the résumé format
+    # (tech fields -> RenderCV/CS template, everything else -> docx/VMH). An
+    # explicit --renderer always wins over the auto-pick.
+    field = classify_field(job.title or "", job.raw_text or "")
+    renderer = args.renderer or renderer_for_field(field)
+
     # before: master profile vs JD
     before = score(job, profile).overall_score
 
     print(f"Tailoring resume for: {job.title or 'role'} @ {job.company or '—'} "
           f"(ATS: {job.ats_platform})")
+    print(f"  · field: {field} -> renderer: {renderer}"
+          + ("  (via --renderer)" if args.renderer else "  (auto)"))
     resume = tailor_resume(profile, job, use_llm=use_llm)
 
     # after: tailored resume text vs JD (re-score using a profile-shaped view)
@@ -102,7 +115,7 @@ def main() -> None:
 
     docx_path = render_docx(resume, app_dir / "resume.docx")
     pdf_path = None
-    if args.renderer == "rendercv":
+    if renderer == "rendercv":
         try:
             from .render_rendercv import render_rendercv
             pdf_path = render_rendercv(resume, app_dir / "resume.pdf")
@@ -120,6 +133,10 @@ def main() -> None:
     cover_letter_to_docx(letter, app_dir / "cover_letter.docx")
 
     (app_dir / "checklist.md").write_text(_checklist(job, app_dir, before, after), encoding="utf-8")
+    # Record why this application used the template it did, so Resume Studio can
+    # read the field/renderer decision back instead of only the CLI seeing it.
+    (app_dir / "meta.json").write_text(
+        json.dumps({"field": field, "renderer": renderer}, indent=2), encoding="utf-8")
 
     print("\n=== Application package generated ===")
     print(f"  dir          : {app_dir}")

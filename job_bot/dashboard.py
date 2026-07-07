@@ -1205,10 +1205,34 @@ with tab_resume:
         "add/remove sections directly (the file is JSON, which is valid YAML)",
         height=460, key="studio_yaml")
 
-    studio_renderer = st.radio("Renderer", ["Typst PDF (RenderCV)", "Word (.docx)"],
-                               horizontal=True,
-                               help="The .docx path is the same python-docx renderer "
-                                    "generate.py uses — unchanged, always available.")
+    def _studio_default_renderer() -> str:
+        """'rendercv' or 'docx', auto-picked from the source's career field: an
+        application folder's meta.json if present, else the first target role."""
+        from job_bot.applications import classify_field
+        from job_bot.template_select import renderer_for_field
+        if studio_src != _FROM_PROFILE:
+            _meta = _apps_root / studio_src / "meta.json"
+            if _meta.exists():
+                try:
+                    _m = json.loads(_meta.read_text(encoding="utf-8"))
+                    if _m.get("renderer") in ("rendercv", "docx"):
+                        return _m["renderer"]
+                    if _m.get("field"):
+                        return renderer_for_field(_m["field"])
+                except Exception:
+                    pass
+        targets = (profile.get("targets") or {}).get("target_roles") or ["Analyst"]
+        return renderer_for_field(classify_field(targets[0]))
+
+    _rlabels = ["Typst PDF (RenderCV)", "Word (.docx)"]
+    _rdefault = 0 if _studio_default_renderer() == "rendercv" else 1
+    # Source-scoped key so switching sources re-defaults to that source's field,
+    # while a manual override still sticks per source.
+    studio_renderer = st.radio("Renderer", _rlabels, horizontal=True,
+                               index=_rdefault, key=f"studio_renderer_{studio_src}",
+                               help="Defaults to the template for this application's "
+                                    "career field (tech → Typst/CS, business → "
+                                    ".docx/VMH). Override anytime.")
 
     if studio_renderer.startswith("Typst"):
         if st.button("🖨️ Render PDF", type="primary", disabled=not studio_yaml.strip()):

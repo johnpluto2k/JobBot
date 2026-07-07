@@ -234,6 +234,8 @@ export interface StudioSources {
 }
 export interface StudioYaml {
   yaml?: string
+  field?: string
+  suggested_renderer?: 'rendercv' | 'docx'
   error?: string
 }
 export interface StudioRender {

@@ -28,16 +28,19 @@ export function AppHeader({ profile }: { profile: Profile | null }) {
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           Job Bot <span className="font-normal text-muted-foreground">· Career OS</span>
         </h1>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           {profile?.name && <span className="font-medium text-foreground">{profile.name}</span>}
           {profile?.location && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin size={13} /> {profile.location}
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <MapPin size={13} className="shrink-0" /> <span className="truncate">{profile.location}</span>
             </span>
           )}
           {profile?.email && (
-            <a href={`mailto:${profile.email}`} className="inline-flex items-center gap-1 hover:text-primary">
-              <Mail size={13} /> {profile.email}
+            <a
+              href={`mailto:${profile.email}`}
+              className="inline-flex min-w-0 max-w-full items-center gap-1 hover:text-primary"
+            >
+              <Mail size={13} className="shrink-0" /> <span className="truncate">{profile.email}</span>
             </a>
           )}
         </div>

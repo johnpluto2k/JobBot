@@ -78,6 +78,14 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  /* Page must never scroll sideways. Wide content (tables, long tokens) scrolls
+     inside its own container or wraps — this is the last-line guard so nothing
+     slips through and pushes the body width. */
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
   body {
     background-color: var(--background);
     color: var(--foreground);

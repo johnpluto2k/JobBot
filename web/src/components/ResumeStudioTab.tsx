@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, ExternalLink, FileCode2, FileText, Loader2, Printer } from 'lucide-react'
+import { Download, ExternalLink, FileCode2, FileText, Loader2, Printer, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -94,24 +94,27 @@ export function ResumeStudioTab() {
           <CardTitle className="flex items-center gap-2 text-base">
             <FileCode2 size={17} style={{ color: 'var(--primary)' }} /> Resume Studio — resume as code
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             The resume is a RenderCV YAML file you edit as text, then typeset to PDF. RenderCV 2.x
             compiles via <span className="font-medium text-foreground">Typst</span> (v2 dropped LaTeX), so
-            the typeset source is a <code className="rounded bg-muted px-1 font-mono text-xs">.typ</code>{' '}
-            file — Overleaf (LaTeX-only) can't open it. To edit online, download the .typ and paste it
-            into typst.app; that round-trip is one-way — copy changes back here yourself.
+            the typeset source is a{' '}
+            <code className="break-words rounded bg-muted px-1 font-mono text-xs">.typ</code> file —
+            Overleaf (LaTeX-only) can't open it. To edit online, download the .typ and paste it into
+            typst.app; that round-trip is one-way — copy changes back here yourself.
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="min-w-[16rem]">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <CardContent className="space-y-5">
+          {/* Controls: pick a source, then run the primary (suggested) renderer */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+            <label className="min-w-0 flex-1 sm:max-w-sm">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Start from
               </span>
               <select
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                disabled={loadingYaml && !sources.data}
+                className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {(sources.data?.sources ?? [{ key: 'profile', label: 'Master profile (no target JD)' }]).map(
                   (s: StudioSource) => (
@@ -122,67 +125,96 @@ export function ResumeStudioTab() {
                 )}
               </select>
             </label>
-            <Button
-              variant={suggested === 'docx' ? 'outline' : 'default'}
-              onClick={render}
-              disabled={rendering || loadingYaml || !yaml.trim()}
-            >
-              {rendering ? (
-                <>
-                  <Loader2 className="animate-spin" /> Typesetting…
-                </>
-              ) : (
-                <>
-                  <Printer /> Render PDF
-                </>
-              )}
-            </Button>
-            <Button
-              variant={suggested === 'docx' ? 'default' : 'outline'}
-              onClick={downloadDocx}
-              disabled={loadingYaml}
-            >
-              <FileText /> Download .docx
-            </Button>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Button
+                variant={suggested === 'docx' ? 'outline' : 'default'}
+                onClick={render}
+                disabled={rendering || loadingYaml || !yaml.trim()}
+                aria-busy={rendering}
+              >
+                {rendering ? (
+                  <>
+                    <Loader2 className="animate-spin" aria-hidden="true" /> Typesetting…
+                  </>
+                ) : (
+                  <>
+                    <Printer aria-hidden="true" /> Render PDF
+                  </>
+                )}
+              </Button>
+              <Button
+                variant={suggested === 'docx' ? 'default' : 'outline'}
+                onClick={downloadDocx}
+                disabled={loadingYaml}
+              >
+                <FileText aria-hidden="true" /> Download .docx
+              </Button>
+            </div>
           </div>
-          {suggested && (
-            <p className="text-xs text-muted-foreground">
-              Suggested template{field ? ` for ${field}` : ''}:{' '}
-              <span className="font-medium text-foreground">
-                {suggested === 'rendercv'
-                  ? 'Typst PDF — CS/tech format'
-                  : 'Word .docx — business/VMH format'}
-              </span>
-              . This is just a default — use either output.
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Application folders appear in the picker once generated with{' '}
-            <code className="rounded bg-muted px-1 font-mono">python -m job_bot.generate --renderer rendercv</code>.
-            The .docx uses the classic python-docx renderer — for application sources it downloads the
-            already-generated file; YAML edits only affect the Typst PDF.
-          </p>
 
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              RenderCV YAML — this is the resume: reorder bullets, rewrite wording, add/remove sections (JSON
-              is valid YAML)
-            </span>
+          {/* Suggested-default hint: reserve height so toggling it never shifts the layout */}
+          <div className="min-h-[1.25rem]">
+            {suggested && (
+              <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                <Sparkles size={13} className="shrink-0" style={{ color: 'var(--primary)' }} aria-hidden="true" />
+                <span>
+                  Suggested for{field ? ` ${field}` : ' this profile'}:{' '}
+                  <span className="font-medium text-foreground">
+                    {suggested === 'rendercv'
+                      ? 'Typst PDF — CS/tech format'
+                      : 'Word .docx — business/VMH format'}
+                  </span>
+                  . Just a default — either output works.
+                </span>
+              </p>
+            )}
+          </div>
+
+          {/* YAML editor — the résumé itself */}
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <label
+                htmlFor="studio-yaml"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                RenderCV YAML
+              </label>
+              <span className="min-w-0 text-xs text-muted-foreground">
+                the résumé — reorder bullets, rewrite wording, add/remove sections (JSON is valid YAML)
+              </span>
+            </div>
             <Textarea
-              value={loadingYaml ? 'Loading…' : yaml}
+              id="studio-yaml"
+              value={yaml}
               onChange={(e) => setYaml(e.target.value)}
               disabled={loadingYaml}
               spellCheck={false}
-              className="min-h-[26rem] font-mono text-xs leading-relaxed"
+              placeholder={loadingYaml ? 'Loading résumé YAML…' : 'RenderCV YAML…'}
+              aria-busy={loadingYaml}
+              className="min-h-[26rem] w-full resize-y overflow-auto whitespace-pre font-mono text-xs leading-relaxed"
             />
-          </label>
+          </div>
 
-          {rendering && (
-            <p className="text-xs text-muted-foreground">
-              The rendercv CLI typesets via Typst — usually 10–30s. Hang tight.
-            </p>
-          )}
-          {error && <p className="whitespace-pre-wrap text-sm text-destructive">{error}</p>}
+          <p className="max-w-prose text-xs leading-relaxed text-muted-foreground">
+            Application folders appear in the picker once generated with{' '}
+            <code className="break-words rounded bg-muted px-1 font-mono">
+              python -m job_bot.generate --renderer rendercv
+            </code>
+            . The .docx uses the classic python-docx renderer — for application sources it downloads the
+            already-generated file; YAML edits only affect the Typst PDF.
+          </p>
+
+          {/* Status region: render progress + errors, reserved so it doesn't jump the page */}
+          <div className="min-h-[1.25rem] space-y-2" aria-live="polite">
+            {rendering && (
+              <p className="text-xs text-muted-foreground">
+                The rendercv CLI typesets via Typst — usually 10–30s. Hang tight.
+              </p>
+            )}
+            {error && (
+              <p className="whitespace-pre-wrap break-words text-sm text-destructive">{error}</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 

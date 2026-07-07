@@ -49,10 +49,10 @@ function ContextStrip({ snap }: { snap: CoachSnapshot }) {
       {items.map((it, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground"
+          className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground"
         >
-          <it.icon size={13} style={{ color: it.tint }} />
-          {it.text}
+          <it.icon size={13} className="shrink-0" style={{ color: it.tint }} />
+          <span className="min-w-0 break-words">{it.text}</span>
         </span>
       ))}
     </div>

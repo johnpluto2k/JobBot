@@ -1,0 +1,21 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated artifacts
+data/
+!data/.gitkeep
+
+# Personal source documents (resumes, transcripts, cover letters, avatar)
+documents/
+
+# Raw source inputs — alumni sheet, job tracker (contains a password!), LinkedIn
+# export. Sensitive PII/credentials; never commit.
+inputs/
+
+# OS / Office cruft
+~$*
+.DS_Store
+.gstack/

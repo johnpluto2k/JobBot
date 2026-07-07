@@ -1,0 +1,49 @@
+# Agentic Job Application System — full stack (Phases 1–9)
+# Tested on Python 3.14 (Windows). Notes below for the two install quirks.
+
+# --- Core (Phases 1–4): parsing, schema, similarity, output ---
+pydantic>=2.6
+python-docx>=1.1
+pymupdf>=1.24
+pymupdf4llm>=0.0.17
+python-dotenv>=1.0
+jinja2>=3.1
+reportlab>=4.1
+
+# --- LLM (optional everywhere — set ANTHROPIC_API_KEY to enable) ---
+anthropic>=0.40
+
+# --- Vector store (Phase 1, optional) ---
+chromadb>=0.5
+
+# --- Data / dashboard (Phases 5, 9) ---
+pandas>=2.2
+streamlit>=1.35
+
+# --- React dashboard API (job_bot/api.py — serves the Vite app in web/) ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
+# --- Browser automation (Phase 8) ---
+playwright>=1.44
+# After install, download the browser once:  python -m playwright install chromium
+
+# --- Job scraping (Phase 5) ---
+# JobSpy pins an old numpy (1.26.3) that has no Python 3.14 wheel. On 3.14,
+# install it WITHOUT its deps (numpy>=2 / pandas already satisfy it at runtime):
+#     pip install --no-deps python-jobspy
+#     pip install tls_client markdownify beautifulsoup4 requests regex
+# On Python 3.11/3.12 a plain `pip install python-jobspy` works.
+python-jobspy>=1.1; python_version < "3.14"
+
+# --- LaTeX resume pipeline (Phase 4, optional: generate.py --renderer rendercv) ---
+# Renders resume.yaml -> polished PDF; the YAML also opens in Overleaf.
+rendercv[full]>=2.0
+
+# --- Optional NLP upgrade (auto-used if present; pure-Python fallback otherwise) ---
+# Best wheel coverage on Python 3.11/3.12.
+# sentence-transformers>=3.0
+# spacy>=3.7
+# scikit-learn>=1.4
+
+# sqlite3 is part of the Python standard library — no install needed.

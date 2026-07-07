@@ -1,0 +1,13 @@
+[theme]
+# Minimalist light theme — neutral canvas, single restrained accent.
+base = "light"
+primaryColor = "#4F46E5"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F8FA"
+textColor = "#1A1D21"
+borderColor = "#E8EAED"
+baseRadius = "0.5rem"
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = true

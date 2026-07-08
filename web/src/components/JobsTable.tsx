@@ -26,7 +26,6 @@ export function JobsTable({ jobs }: { jobs: Job[] }) {
           <TableRow>
             <TableHead>Role</TableHead>
             <TableHead>Company</TableHead>
-            <TableHead>Location</TableHead>
             <TableHead className="text-right">ATS</TableHead>
             <TableHead className="text-right">Priority</TableHead>
             <TableHead>Legitimacy</TableHead>
@@ -42,8 +41,10 @@ export function JobsTable({ jobs }: { jobs: Job[] }) {
                   <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{j.recommendation}</span>
                 )}
               </TableCell>
-              <TableCell className="text-muted-foreground">{j.company || '—'}</TableCell>
-              <TableCell className="text-muted-foreground">{j.location || '—'}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {j.company || '—'}
+                {j.location && <span className="block text-xs text-muted-foreground">{j.location}</span>}
+              </TableCell>
               <TableCell className="text-right">
                 <Badge variant={scoreVariant(j.ats_score)} className="tabular-nums">
                   {j.ats_score != null ? Math.round(j.ats_score) : '—'}

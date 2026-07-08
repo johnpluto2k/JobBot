@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { ErrorNote } from '@/components/ErrorNote'
 import { api, type Brief } from '@/lib/api'
 
 function ListCard({ title, items }: { title: string; items: string[] }) {
@@ -60,18 +61,20 @@ export function BriefTab() {
             <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company (e.g. KPMG)" />
             <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role (optional)" />
           </div>
-          <Button onClick={run} disabled={loading || !company.trim()}>
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" /> Building…
-              </>
-            ) : (
-              <>
-                <Building2 /> Build brief
-              </>
-            )}
-          </Button>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <ErrorNote error={error} title="Brief failed." showStartHint={false} />}
+          <div className="flex justify-end border-t border-border pt-4">
+            <Button onClick={run} disabled={loading || !company.trim()}>
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" /> Building…
+                </>
+              ) : (
+                <>
+                  <Building2 /> Build brief
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

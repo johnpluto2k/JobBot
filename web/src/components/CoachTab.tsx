@@ -3,6 +3,7 @@ import { AlertCircle, CalendarClock, Clock, Loader2, Mail, MessageCircle, Send }
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { ErrorNote } from '@/components/ErrorNote'
 import { api, type ChatMessage, type CoachSnapshot } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
@@ -166,7 +167,7 @@ export function CoachTab() {
                 </div>
               </div>
             )}
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <ErrorNote error={error} title="Coach reply failed." showStartHint={false} />}
           </div>
 
           {disabledReason && (

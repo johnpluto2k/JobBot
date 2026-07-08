@@ -3,6 +3,7 @@ import { Gift, Trophy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ErrorNote } from '@/components/ErrorNote'
 import { api } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
@@ -58,7 +59,7 @@ export function OffersTab() {
       {loading ? (
         <div className="h-40 animate-pulse rounded-xl border border-border bg-card" />
       ) : error ? (
-        <Card className="p-6 text-sm text-destructive">{error}</Card>
+        <ErrorNote error={error} />
       ) : !data || data.offers.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 p-10 text-center">
           <Gift size={28} className="text-muted-foreground/50" />

@@ -4,15 +4,28 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { ErrorNote } from '@/components/ErrorNote'
 import { JobsTable } from '@/components/JobsTable'
 import { KpiCard } from '@/components/KpiCard'
 import { api, type SearchResult } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
+const SITE_LABELS: Record<string, string> = {
+  indeed: 'Indeed',
+  linkedin: 'LinkedIn',
+  glassdoor: 'Glassdoor',
+  zip_recruiter: 'ZipRecruiter',
+  google: 'Google Jobs',
+}
+
+const siteLabel = (s: string) => SITE_LABELS[s] ?? s
+
 export function FindJobsTab() {
   const info = useAsync(api.cycles, [])
   const [cycleKey, setCycleKey] = useState<string | null>(null)
   const [tracks, setTracks] = useState<string[]>([])
+  const [sites, setSites] = useState<string[]>([])
+  const [resultsPer, setResultsPer] = useState(10)
   const [location, setLocation] = useState('Washington, DC')
   const [remote, setRemote] = useState(true)
   const [running, setRunning] = useState(false)
@@ -23,19 +36,24 @@ export function FindJobsTab() {
   if (info.data && cycleKey === null) {
     setCycleKey(info.data.cycles[0]?.key ?? '')
     setTracks(info.data.default_tracks)
+    setSites(info.data.default_sites)
   }
 
   function toggleTrack(t: string) {
     setTracks((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]))
   }
 
+  function toggleSite(t: string) {
+    setSites((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]))
+  }
+
   async function run() {
     const cycle = info.data?.cycles.find((c) => c.key === cycleKey)
-    if (!cycle || tracks.length === 0) return
+    if (!cycle || tracks.length === 0 || sites.length === 0) return
     setRunning(true)
     setError(null)
     try {
-      const r = await api.search({ tracks, kind: cycle.kind, location, remote, results_per: 10 })
+      const r = await api.search({ tracks, kind: cycle.kind, location, remote, results_per: resultsPer, sites })
       setResult(r)
     } catch (e) {
       setError(String((e as Error).message ?? e))
@@ -45,7 +63,7 @@ export function FindJobsTab() {
   }
 
   if (info.loading) return <div className="h-64 animate-pulse rounded-xl border border-border bg-card" />
-  if (info.error || !info.data) return <Card className="p-6 text-sm text-destructive">{info.error}</Card>
+  if (info.error || !info.data) return <ErrorNote error={info.error ?? 'No cycle data returned.'} />
 
   return (
     <div className="space-y-6">
@@ -55,7 +73,9 @@ export function FindJobsTab() {
             <Search size={17} style={{ color: 'var(--primary)' }} /> Find jobs by cycle &amp; track
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Graduating {info.data.graduation_date}. Live-scrapes Indeed and scores each posting against your profile.
+            Graduating {info.data.graduation_date}. Live-scrapes{' '}
+            {sites.length ? sites.map(siteLabel).join(', ') : 'your selected job boards'} and scores each posting
+            against your profile.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -91,18 +111,55 @@ export function FindJobsTab() {
             </div>
           </div>
 
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Job boards</p>
+            <div className="flex flex-wrap gap-2">
+              {info.data.sites.map((t) => (
+                <button key={t} onClick={() => toggleSite(t)}>
+                  <Badge variant={sites.includes(t) ? 'default' : 'secondary'} className="cursor-pointer py-1">
+                    {siteLabel(t)}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-end gap-4">
-            <label className="flex-1 min-w-[12rem]">
+            <label className="min-w-[12rem] flex-1">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Location
               </span>
               <Input value={location} onChange={(e) => setLocation(e.target.value)} />
             </label>
+            <label className="min-w-[12rem] flex-1">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Results per role: {resultsPer}
+              </span>
+              <input
+                type="range"
+                min={5}
+                max={50}
+                step={5}
+                value={resultsPer}
+                onChange={(e) => setResultsPer(Number(e.target.value))}
+                className="h-9 w-full accent-[var(--primary)]"
+              />
+            </label>
             <label className="flex items-center gap-2 pb-2.5 text-sm">
               <input type="checkbox" checked={remote} onChange={(e) => setRemote(e.target.checked)} className="accent-[var(--primary)]" />
               Remote-friendly
             </label>
-            <Button onClick={run} disabled={running || tracks.length === 0}>
+          </div>
+
+          {running && (
+            <p className="text-xs text-muted-foreground">
+              Scraping can take 20–60s and is occasionally rate-limited — hang tight.
+            </p>
+          )}
+          {error && <ErrorNote error={error} title="Search failed." showStartHint={false} />}
+
+          <div className="flex justify-end border-t border-border pt-4">
+            <Button onClick={run} disabled={running || tracks.length === 0 || sites.length === 0}>
               {running ? (
                 <>
                   <Loader2 className="animate-spin" /> Searching…
@@ -114,12 +171,6 @@ export function FindJobsTab() {
               )}
             </Button>
           </div>
-          {running && (
-            <p className="text-xs text-muted-foreground">
-              Scraping can take 20–60s and is occasionally rate-limited — hang tight.
-            </p>
-          )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
 

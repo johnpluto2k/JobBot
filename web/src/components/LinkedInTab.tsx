@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { ErrorNote } from '@/components/ErrorNote'
 import { api, type LinkedInAudit } from '@/lib/api'
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
@@ -58,25 +59,27 @@ export function LinkedInTab() {
             Generates a search-optimized headline and About section, ranks your skills, and flags keyword gaps.
           </p>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <label className="flex-1 min-w-[14rem]">
+        <CardContent className="space-y-3">
+          <label className="block">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Target role (optional)
             </span>
             <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. IT Audit / Technology Risk" />
           </label>
-          <Button onClick={run} disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" /> Auditing…
-              </>
-            ) : (
-              <>
-                <AtSign /> Run audit
-              </>
-            )}
-          </Button>
-          {error && <p className="w-full text-sm text-destructive">{error}</p>}
+          {error && <ErrorNote error={error} title="Audit failed." showStartHint={false} />}
+          <div className="flex justify-end border-t border-border pt-4">
+            <Button onClick={run} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" /> Auditing…
+                </>
+              ) : (
+                <>
+                  <AtSign /> Run audit
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

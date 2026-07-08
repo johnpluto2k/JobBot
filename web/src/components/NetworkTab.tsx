@@ -1,6 +1,7 @@
 import { Users, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ErrorNote } from '@/components/ErrorNote'
 import { KpiCard } from '@/components/KpiCard'
 import { api, type Contact } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
@@ -41,7 +42,7 @@ export function NetworkTab() {
   const { data, loading, error } = useAsync(api.network, [])
 
   if (loading) return <div className="h-64 animate-pulse rounded-xl border border-border bg-card" />
-  if (error || !data) return <Card className="p-6 text-sm text-destructive">{error}</Card>
+  if (error || !data) return <ErrorNote error={error ?? 'No network data returned.'} />
 
   const topCovered = data.covered.slice(0, 12)
 

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { ErrorNote } from '@/components/ErrorNote'
 import { KpiCard } from '@/components/KpiCard'
 import { api, type Recording } from '@/lib/api'
 
@@ -56,18 +57,19 @@ export function InterviewTab() {
             placeholder="Paste the transcript of your recorded answer…"
             className="min-h-[160px]"
           />
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="w-56">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Spoken duration (sec, optional)
-              </span>
-              <Input
-                type="number"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="e.g. 90 — enables pacing"
-              />
-            </label>
+          <label className="block w-56">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Spoken duration (sec, optional)
+            </span>
+            <Input
+              type="number"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="e.g. 90 — enables pacing"
+            />
+          </label>
+          {error && <ErrorNote error={error} title="Analysis failed." showStartHint={false} />}
+          <div className="flex justify-end border-t border-border pt-4">
             <Button onClick={run} disabled={loading || !transcript.trim()}>
               {loading ? (
                 <>
@@ -80,7 +82,6 @@ export function InterviewTab() {
               )}
             </Button>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
 

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { ErrorNote } from '@/components/ErrorNote'
 import { api, type ScoreResult } from '@/lib/api'
 
 function scoreColor(v: number) {
@@ -59,18 +60,20 @@ export function ScoreTab() {
               placeholder="Company override (optional)"
             />
           </div>
-          <Button onClick={analyze} disabled={loading || !jd.trim()}>
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" /> Analyzing…
-              </>
-            ) : (
-              <>
-                <Sparkles /> Analyze
-              </>
-            )}
-          </Button>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <ErrorNote error={error} title="Analysis failed." showStartHint={false} />}
+          <div className="flex justify-end border-t border-border pt-4">
+            <Button onClick={analyze} disabled={loading || !jd.trim()}>
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" /> Analyzing…
+                </>
+              ) : (
+                <>
+                  <Sparkles /> Analyze
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

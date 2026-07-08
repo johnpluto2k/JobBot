@@ -19,3 +19,6 @@ inputs/
 ~$*
 .DS_Store
 .gstack/
+
+# Claude Code personal settings
+.claude/settings.json

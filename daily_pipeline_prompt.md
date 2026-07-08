@@ -38,6 +38,34 @@ no evidence, re-run it.
    career-coach skill / CLAUDE.md coaching mode references when John asks "what
    happened while I was away," so lead with the time-sensitive items.
 
+6. **File the Agent HQ report** (John's Obsidian dashboard). Do this yourself
+   (conductor), last, even if earlier steps failed — a failure report is still a
+   report:
+   - Write `C:\ClaudeProjects\ObsidianVault\Reports\<YYYY-MM-DD> Job Bot.md`
+     (overwrite if re-run same day) in exactly this shape — short, no data dump:
+
+     ```markdown
+     # Job Bot — <YYYY-MM-DD>
+
+     **Result:** ✅ ran clean | ⚠️ needs attention | ❌ errored
+     **Needs John:** no — nothing to review  *(or: yes — one bullet per item)*
+
+     - Postings: <new> new, <high> high-priority
+     - Resumes tailored: <n> · Drafts awaiting review: <n>
+     - Inbox: <live> live opportunities, <sched> scheduling requests
+
+     Full log: `data/daily_pipeline_log/<YYYY-MM-DD>.md` · Dashboard: [[Agent HQ]]
+
+     #report #job-bot
+     ```
+
+   - Then update the **Job Bot row only** of the "Team status" table in
+     `C:\ClaudeProjects\ObsidianVault\1 Projects\Agent HQ.md` to
+     `| Job Bot | <YYYY-MM-DD> | ✅/⚠️/❌ <three-word summary> | yes/no |`.
+     Touch nothing else in that file.
+   - If the vault isn't writable for any reason, note that at the top of the
+     daily pipeline log and finish normally — never let reporting block the run.
+
 ## How the agents cooperate on a daily run
 
 - job-scout's high-priority finds **feed** resume-tailor (top 3 max).

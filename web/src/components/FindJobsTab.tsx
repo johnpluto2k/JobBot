@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,12 +32,13 @@ export function FindJobsTab() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<SearchResult | null>(null)
 
-  // Seed selections once cycles load.
-  if (info.data && cycleKey === null) {
-    setCycleKey(info.data.cycles[0]?.key ?? '')
-    setTracks(info.data.default_tracks)
-    setSites(info.data.default_sites)
-  }
+  useEffect(() => {
+    if (info.data && cycleKey === null) {
+      setCycleKey(info.data.cycles[0]?.key ?? '')
+      setTracks(info.data.default_tracks)
+      setSites(info.data.default_sites)
+    }
+  }, [info.data, cycleKey])
 
   function toggleTrack(t: string) {
     setTracks((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]))

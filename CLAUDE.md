@@ -56,3 +56,24 @@ Any `claude` session started in this folder — on this machine, independent of
 any other chat — reads this file automatically, so it has the same grounding
 and persona without needing anything scheduled or pre-connected. Just open a
 terminal in this folder, run `claude`, and ask a coaching question.
+
+## Browsing job boards: use `agent-browser`
+
+For any pipeline step that needs to browse or scrape a job board (or any other
+live web page), use the globally installed `agent-browser` CLI instead of raw
+HTTP fetches or heavier browser MCP servers — it returns a compact
+accessibility-tree snapshot instead of full HTML, so it is far cheaper in
+tokens and handles JavaScript-rendered listings that plain fetches miss.
+
+Typical loop:
+
+```bash
+agent-browser open https://www.linkedin.com/jobs/search?keywords=...
+agent-browser snapshot            # lists interactive elements as @e1, @e2, ...
+agent-browser click @e5           # e.g. open a posting
+agent-browser fill @e3 "python developer"   # e.g. type into the search box
+```
+
+Re-run `snapshot` after each navigation/click to get fresh element refs. This
+is a tooling note only — the pipeline stages, prompts, and outputs in
+`daily_pipeline_prompt.md` are unchanged.

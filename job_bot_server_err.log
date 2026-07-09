@@ -1,0 +1,258 @@
+INFO:     Started server process [16032]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-07-08 13:47:55,602 - INFO - JobSpy:Linkedin - finished scraping
+2026-07-08 13:47:59,043 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:48:05,667 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180eaf47d743b71-IAD","status_code":403}
+2026-07-08 13:48:13,515 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:48:20,160 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180eb4efdc20a90-IAD","status_code":403}
+2026-07-08 13:48:27,811 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:48:34,426 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180eba83ff5a5f8-IAD","status_code":403}
+2026-07-08 13:48:42,127 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:48:48,759 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ec01cbdfd645-IAD","status_code":403}
+2026-07-08 13:48:56,348 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:49:02,975 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ec5a9c35cd01-IAD","status_code":403}
+2026-07-08 13:49:10,408 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:49:17,145 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ecb32bb94c80-IAD","status_code":403}
+2026-07-08 13:49:26,328 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:49:33,115 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ed165ddc9a22-IAD","status_code":403}
+2026-07-08 13:49:40,337 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:49:46,954 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ed6d78942de1-IAD","status_code":403}
+2026-07-08 13:49:54,509 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:50:01,106 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180edc5ffac6973-IAD","status_code":403}
+2026-07-08 13:50:10,043 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:50:16,622 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ee26fba5a265-IAD","status_code":403}
+2026-07-08 13:50:23,758 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:50:30,366 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ee7ccd5fc9a4-IAD","status_code":403}
+2026-07-08 13:50:39,112 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:50:45,721 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180eedcbae574db-IAD","status_code":403}
+2026-07-08 13:50:53,564 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:51:00,387 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ef3859913b95-IAD","status_code":403}
+2026-07-08 13:51:08,090 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:51:14,679 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180ef91b9b6879e-IAD","status_code":403}
+2026-07-08 13:51:22,384 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:51:29,032 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180efeb6af9394f-IAD","status_code":403}
+2026-07-08 13:51:36,605 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:51:43,404 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f0452c553952-IAD","status_code":403}
+2026-07-08 13:51:50,981 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:51:57,807 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f09ee9b33934-IAD","status_code":403}
+2026-07-08 13:52:05,820 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:52:12,418 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f0faada70de2-IAD","status_code":403}
+2026-07-08 13:52:19,380 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:52:26,009 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f14f6c843dec-IAD","status_code":403}
+2026-07-08 13:52:39,382 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:52:45,979 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f1cc59cf4b25-IAD","status_code":403}
+2026-07-08 13:52:53,624 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:53:00,232 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f2255c8fdbb8-IAD","status_code":403}
+2026-07-08 13:53:07,770 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:53:14,371 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f27ddbf26ccf-IAD","status_code":403}
+2026-07-08 13:53:22,021 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:53:28,647 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f2d6f8457411-IAD","status_code":403}
+2026-07-08 13:53:36,050 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:53:42,654 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f32e8da7b154-IAD","status_code":403}
+2026-07-08 13:53:50,519 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:53:57,157 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f3893a4ae5f0-IAD","status_code":403}
+2026-07-08 13:54:05,076 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:54:12,012 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f3e59c7ad68b-IAD","status_code":403}
+2026-07-08 13:54:19,994 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:54:26,575 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f441185fc946-IAD","status_code":403}
+2026-07-08 13:54:33,831 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 13:54:40,468 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a180f497bbe0ab5c-IAD","status_code":403}
+2026-07-08 13:54:49,731 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 16:35:04,739 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a181df8d0e1199f9-IAD","status_code":403}
+2026-07-08 16:35:12,723 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 16:35:19,384 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a181dfe8888396cf-IAD","status_code":403}
+2026-07-08 16:35:26,703 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 16:35:33,441 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a181e03faa0cd46a-IAD","status_code":403}
+2026-07-08 16:35:41,242 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 16:35:48,005 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a181e09abadff2fd-IAD","status_code":403}
+2026-07-08 16:35:56,028 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:05:28,406 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18313bb993dd6f5-IAD","status_code":403}
+2026-07-08 20:15:50,629 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:15:57,347 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183231f2a3e3e80-IAD","status_code":403}
+2026-07-08 20:16:05,582 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:16:12,277 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183237c4e79c24d-IAD","status_code":403}
+2026-07-08 20:16:19,857 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:16:26,484 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18323d5398e5d04-IAD","status_code":403}
+2026-07-08 20:16:33,729 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:16:40,597 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183242cad7dd629-IAD","status_code":403}
+2026-07-08 20:16:55,784 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:17:03,111 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18324b8dfdddfee-IAD","status_code":403}
+2026-07-08 20:17:10,851 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:17:17,608 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18325148890c5fb-IAD","status_code":403}
+2026-07-08 20:17:29,800 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:17:36,655 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183258b7dcb1320-IAD","status_code":403}
+2026-07-08 20:17:43,783 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:17:50,629 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18325e2e8b02419-IAD","status_code":403}
+2026-07-08 20:17:58,175 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:18:04,965 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183263c8da151c4-IAD","status_code":403}
+2026-07-08 20:18:14,121 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:18:20,837 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183269fece80cf8-IAD","status_code":403}
+2026-07-08 20:18:28,866 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:18:35,626 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18326fc3b22d6b0-IAD","status_code":403}
+2026-07-08 20:18:44,848 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:18:51,992 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832761da1c8845-IAD","status_code":403}
+2026-07-08 20:18:59,590 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:19:06,273 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18327bbad337fff-IAD","status_code":403}
+2026-07-08 20:19:13,965 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:19:20,630 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832815bba18aac-IAD","status_code":403}
+2026-07-08 20:19:28,476 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:19:35,260 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832870cc3badd9-IAD","status_code":403}
+2026-07-08 20:19:43,500 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:19:50,171 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18328ce4d963ad9-IAD","status_code":403}
+2026-07-08 20:19:58,268 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:20:05,027 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183292a5a009167-IAD","status_code":403}
+2026-07-08 20:20:13,020 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:20:20,225 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18329895bfbe5b6-IAD","status_code":403}
+2026-07-08 20:20:28,044 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:20:35,079 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18329e65fd0e5eb-IAD","status_code":403}
+2026-07-08 20:20:48,357 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:20:55,143 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832a644ebba277-IAD","status_code":403}
+2026-07-08 20:21:03,090 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:21:09,847 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832abffffcd85d-IAD","status_code":403}
+2026-07-08 20:21:17,747 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:21:24,437 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832b1b2d0570c5-IAD","status_code":403}
+2026-07-08 20:21:32,583 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:21:39,264 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832b781859e5ff-IAD","status_code":403}
+2026-07-08 20:21:46,714 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:21:53,496 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832bd0ccda82ae-IAD","status_code":403}
+2026-07-08 20:22:01,607 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:22:08,526 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832c2e5b1381f4-IAD","status_code":403}
+2026-07-08 20:22:16,078 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:22:23,553 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832c8b0d122902-IAD","status_code":403}
+2026-07-08 20:22:31,118 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:22:38,143 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832ce73bcad860-IAD","status_code":403}
+2026-07-08 20:22:46,007 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:22:52,982 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832d447d4ed6a7-IAD","status_code":403}
+2026-07-08 20:23:02,417 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:23:09,502 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832dab29bc2909-IAD","status_code":403}
+2026-07-08 20:23:21,872 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:23:29,016 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832e246a7df697-IAD","status_code":403}
+2026-07-08 20:23:45,608 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:23:52,339 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832eb75aecc936-IAD","status_code":403}
+2026-07-08 20:24:00,354 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:24:07,113 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832f137e790867-IAD","status_code":403}
+2026-07-08 20:24:14,773 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:24:21,653 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1832f6ddbe2d703-IAD","status_code":403}
+2026-07-08 20:32:35,434 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:32:35,434 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:32:42,720 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833ba8ac95a130-IAD","status_code":403}
+2026-07-08 20:32:52,258 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:32:52,259 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:32:54,896 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:32:54,897 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:32:59,127 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833c10ef0b4e70-IAD","status_code":403}
+2026-07-08 20:33:02,004 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833c228daee5c3-IAD","status_code":403}
+2026-07-08 20:33:07,822 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:07,823 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:33:10,645 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:10,646 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:33:14,582 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833c714c372d1a-IAD","status_code":403}
+2026-07-08 20:33:17,654 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833c8489cbe54b-IAD","status_code":403}
+2026-07-08 20:33:23,641 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:23,641 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:33:26,321 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:26,322 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:33:30,632 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833cd4afd690be-IAD","status_code":403}
+2026-07-08 20:33:33,424 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833ce709d82052-IAD","status_code":403}
+2026-07-08 20:33:39,124 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:39,125 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:33:41,913 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:41,914 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:33:46,016 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833d361bf7f2c6-IAD","status_code":403}
+2026-07-08 20:33:48,663 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833d46b8b289b1-IAD","status_code":403}
+2026-07-08 20:33:54,671 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:54,672 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:33:57,123 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:33:57,123 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:34:01,745 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833d97fe33ea88-IAD","status_code":403}
+2026-07-08 20:34:03,779 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833da51d279a25-IAD","status_code":403}
+2026-07-08 20:34:10,321 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:34:10,321 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:34:12,512 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:34:17,293 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833df999a82265-IAD","status_code":403}
+2026-07-08 20:34:19,405 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833e067c2a5f12-IAD","status_code":403}
+2026-07-08 20:34:25,077 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:34:25,078 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:34:28,464 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:34:28,465 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:34:31,888 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833e5489621a42-IAD","status_code":403}
+2026-07-08 20:34:35,366 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833e69bf1ec557-IAD","status_code":403}
+2026-07-08 20:34:40,954 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:34:40,954 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:34:44,280 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:34:47,739 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833eb7dfacc98f-IAD","status_code":403}
+2026-07-08 20:34:51,330 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833ecccff51d4c-IAD","status_code":403}
+2026-07-08 20:34:56,322 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:34:56,323 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:34:59,639 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:35:03,097 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833f17bd3e0589-IAD","status_code":403}
+2026-07-08 20:35:06,347 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833f2c1d1afc57-IAD","status_code":403}
+2026-07-08 20:35:10,785 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:35:10,786 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:35:15,099 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:35:17,516 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833f720d4be5e8-IAD","status_code":403}
+2026-07-08 20:35:22,054 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833f8e5d63150b-IAD","status_code":403}
+2026-07-08 20:35:26,364 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:35:26,364 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:35:30,262 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:35:30,262 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:35:33,149 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833fd2c958e5ba-IAD","status_code":403}
+2026-07-08 20:35:37,321 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1833feced00e629-IAD","status_code":403}
+2026-07-08 20:35:45,574 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:35:45,574 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:35:47,515 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:35:47,515 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:35:52,283 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183404adecad6a1-IAD","status_code":403}
+2026-07-08 20:35:54,237 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18340577eec45a9-IAD","status_code":403}
+2026-07-08 20:36:00,523 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:36:00,523 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:36:01,763 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:36:01,763 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:36:07,192 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18340a87c0c9a22-IAD","status_code":403}
+2026-07-08 20:36:08,392 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18340affcf6e5f9-IAD","status_code":403}
+2026-07-08 20:36:15,459 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:36:15,460 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:36:22,189 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:36:22,189 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:36:22,627 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18341084f979a22-IAD","status_code":403}
+2026-07-08 20:36:28,931 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18341300c5b12a7-IAD","status_code":403}
+2026-07-08 20:36:30,974 - ERROR - JobSpy:Glassdoor - Glassdoor: Error encountered in API response
+2026-07-08 20:36:37,200 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:36:37,200 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:36:37,729 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183416708e0af8c-IAD","status_code":403}
+2026-07-08 20:36:43,884 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183418d8873c94f-IAD","status_code":403}
+2026-07-08 20:36:45,878 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:36:45,879 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:36:52,051 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:36:52,051 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:36:52,625 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18341c42e1254bb-IAD","status_code":403}
+2026-07-08 20:36:58,848 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18341eb0acef7a8-IAD","status_code":403}
+2026-07-08 20:37:00,872 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:37:00,873 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:37:06,947 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:37:06,948 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:37:07,586 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1834221af44af78-IAD","status_code":403}
+2026-07-08 20:37:13,632 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1834247a853ffd7-IAD","status_code":403}
+2026-07-08 20:37:16,069 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:37:16,075 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:37:21,886 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:37:21,887 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:37:23,026 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18342818aa71f96-IAD","status_code":403}
+2026-07-08 20:37:28,893 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18342a708d68b1a-IAD","status_code":403}
+2026-07-08 20:37:37,086 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:37:37,086 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:37:43,892 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a1834303ff0bd6b7-IAD","status_code":403}
+2026-07-08 20:37:52,542 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:37:52,542 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:37:59,253 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18343648d65e3e7-IAD","status_code":403}
+2026-07-08 20:38:14,115 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:38:14,116 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:38:20,963 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18343eb2e335774-IAD","status_code":403}
+2026-07-08 20:38:29,532 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:38:29,532 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:38:36,696 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a183444d6b438aac-IAD","status_code":403}
+2026-07-08 20:38:45,011 - ERROR - JobSpy:Glassdoor - Glassdoor response status code 400
+2026-07-08 20:38:45,012 - ERROR - JobSpy:Glassdoor - Glassdoor: location not parsed
+2026-07-08 20:38:52,097 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {"error_code":"forbidden aa","error_message":"forbidden aa","request_id":"CFRAY:a18344ae284278b1-IAD","status_code":403}

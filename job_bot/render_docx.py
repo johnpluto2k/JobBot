@@ -103,6 +103,24 @@ def render_docx(resume: TailoredResume, out_path: Path) -> Path:
         s.add_run(resume.summary)
         _spacing(s, after=2)
 
+    def role_section(title: str, roles) -> None:
+        if not roles:
+            return
+        section_heading(title)
+        for role in roles:
+            left = role.organization or role.role or ""
+            sub = None
+            if role.role and role.organization:
+                sub = role.role + (f"  |  {role.location}" if role.location else "")
+            entry_header(left, role.dates, italic_left=sub)
+            for b in role.bullets:
+                bullet(b)
+
+    # Business track section order (per resume_track_contract.md):
+    # Experience → Leadership → Education → Projects → Skills
+    role_section("Experience", resume.experience)
+    role_section("Leadership & Activities", resume.leadership)
+
     # --- Education ---
     if resume.education:
         section_heading("Education")
@@ -122,22 +140,6 @@ def render_docx(resume: TailoredResume, out_path: Path) -> Path:
                 cw.add_run("Relevant Coursework: ").bold = True
                 cw.add_run(", ".join(e.coursework))
                 _spacing(cw, after=2)
-
-    def role_section(title: str, roles) -> None:
-        if not roles:
-            return
-        section_heading(title)
-        for role in roles:
-            left = role.organization or role.role or ""
-            sub = None
-            if role.role and role.organization:
-                sub = role.role + (f"  |  {role.location}" if role.location else "")
-            entry_header(left, role.dates, italic_left=sub)
-            for b in role.bullets:
-                bullet(b)
-
-    role_section("Experience", resume.experience)
-    role_section("Leadership & Activities", resume.leadership)
 
     if resume.projects:
         section_heading("Projects")

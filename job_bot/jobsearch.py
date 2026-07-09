@@ -164,11 +164,13 @@ def _days_since(date_posted: str) -> int | None:
 
 def score_and_route(rows: list[dict], profile: dict, score_each: bool = True,
                     drop_senior: bool = True) -> list[dict]:
-    """Attach market tier, ATS score, priority, legitimacy, and seniority to each row.
+    """Attach market tier, ATS score, priority, legitimacy, seniority, and qualification gaps to each row.
 
     By default `drop_senior=True` filters out senior/lead/exec roles — the pipeline
     is aimed at John's level (internships + entry-level), so senior postings never
     reach it. Set drop_senior=False to keep them (tagged, not applied).
+
+    Also checks for certification/degree gaps and applies a penalty score.
     """
     from .ats_engine import score
     from .jd_parser import parse_jd
@@ -176,6 +178,7 @@ def score_and_route(rows: list[dict], profile: dict, score_each: bool = True,
     from .applications import classify_field
     from .routing import route
     from .seniority import classify as sen_classify, too_senior
+    from .qualifications import check_qualifications
 
     out: list[dict] = []
     for row in rows:
@@ -202,11 +205,18 @@ def score_and_route(rows: list[dict], profile: dict, score_each: bool = True,
         # Legitimacy check (career-ops Block G) feeds the apply gate in route().
         legit = assess(row.get("description", ""), title=row.get("title"),
                        company=row.get("company"), days_since=days)
+        # Qualification gaps: check for required/preferred certs or degrees John lacks.
+        qual = check_qualifications(row.get("description", ""))
         r = route(job, ats, days, legit_score=legit.legit_score, seniority=sen,
                   on_target=on_target)
+        # Apply qualification penalty to priority (down-rank if certs/degrees missing)
+        r["priority"] = max(0, r.get("priority", 0) - qual.get("penalty_score", 0))
         out.append({**row, "ats_score": round(ats, 1), **r, "days_since": days,
                     "legit_score": legit.legit_score, "legit_grade": legit.grade,
-                    "legit_flags": legit.summary()})
+                    "legit_flags": legit.summary(),
+                    "qual_verdict": qual.get("verdict"),
+                    "qual_certs_missing": qual.get("certs_missing"),
+                    "qual_degree_gap": qual.get("degree_gap")})
     out.sort(key=lambda x: x["priority"], reverse=True)
     return out
 
@@ -217,17 +227,36 @@ def save_jobs(rows: list[dict]) -> int:
     fails = 0
     for r in rows:
         try:
-            con.execute(
-                "INSERT OR IGNORE INTO jobs (title, company, location, site, url, "
-                "date_posted, market_tier, tier_num, ats_score, priority, description, "
-                "legit_score, legit_grade, legit_flags, recommendation, seniority) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (r.get("title"), r.get("company"), r.get("location"), r.get("site"),
-                 r.get("url"), r.get("date_posted"), r.get("market_tier"), r.get("tier_num"),
-                 r.get("ats_score"), r.get("priority"), (r.get("description") or "")[:8000],
-                 r.get("legit_score"), r.get("legit_grade"), r.get("legit_flags"),
-                 r.get("recommendation"), r.get("seniority")),
-            )
+            # Try to save with qualification fields; fall back if column doesn't exist
+            qual_certs = ",".join(r.get("qual_certs_missing", []))
+            qual_degree = r.get("qual_degree_gap", "")
+            try:
+                con.execute(
+                    "INSERT OR IGNORE INTO jobs (title, company, location, site, url, "
+                    "date_posted, market_tier, tier_num, ats_score, priority, description, "
+                    "legit_score, legit_grade, legit_flags, recommendation, seniority, "
+                    "qual_verdict, qual_certs_missing, qual_degree_gap) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (r.get("title"), r.get("company"), r.get("location"), r.get("site"),
+                     r.get("url"), r.get("date_posted"), r.get("market_tier"), r.get("tier_num"),
+                     r.get("ats_score"), r.get("priority"), (r.get("description") or "")[:8000],
+                     r.get("legit_score"), r.get("legit_grade"), r.get("legit_flags"),
+                     r.get("recommendation"), r.get("seniority"),
+                     r.get("qual_verdict", ""), qual_certs, qual_degree),
+                )
+            except Exception:
+                # Fallback: save without qual fields (older schema)
+                con.execute(
+                    "INSERT OR IGNORE INTO jobs (title, company, location, site, url, "
+                    "date_posted, market_tier, tier_num, ats_score, priority, description, "
+                    "legit_score, legit_grade, legit_flags, recommendation, seniority) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (r.get("title"), r.get("company"), r.get("location"), r.get("site"),
+                     r.get("url"), r.get("date_posted"), r.get("market_tier"), r.get("tier_num"),
+                     r.get("ats_score"), r.get("priority"), (r.get("description") or "")[:8000],
+                     r.get("legit_score"), r.get("legit_grade"), r.get("legit_flags"),
+                     r.get("recommendation"), r.get("seniority")),
+                )
             n += con.total_changes and 1 or 0
         except Exception:
             fails += 1

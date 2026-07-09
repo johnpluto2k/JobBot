@@ -4,8 +4,8 @@ Personal AI-powered career platform. Full roadmap lives in
 [`docs/job_application_system_master_plan.md`](docs/job_application_system_master_plan.md).
 
 **Status: ALL 9 PHASES + ALL 15 RECOMMENDATIONS + CAREER-OPS LAYER + TUNE-UPS COMPLETE ✅**
-*Last updated 2026-07-08: LLM defaults moved to `claude-sonnet-5` (judgment
-calls) + `claude-haiku-4-5` (mechanical calls) in `config.py`/`.env`; the
+*Last updated 2026-07-09: Tech v4 resume finalized (cleaned YAML, RenderCV PDF render complete — Pathway + PersonalFinanceOS, 1-page layout).*
+*Previous: 2026-07-08 — LLM defaults moved to `claude-sonnet-5` (judgment calls) + `claude-haiku-4-5` (mechanical calls) in `config.py`/`.env`; the
 globally installed `agent-browser` CLI is now the standard tool for job-board
 browsing/scraping steps (see `CLAUDE.md`).*
 (~60 modules, incl. the three tune-up workstreams from

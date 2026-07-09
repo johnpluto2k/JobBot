@@ -20,6 +20,29 @@ const SITE_LABELS: Record<string, string> = {
 
 const siteLabel = (s: string) => SITE_LABELS[s] ?? s
 
+const STORAGE_KEY_RESULT = 'jobbot.findjobs.result'
+
+function loadCachedResult(): SearchResult | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_RESULT)
+    return stored ? JSON.parse(stored) : null
+  } catch {
+    return null
+  }
+}
+
+function saveCachedResult(result: SearchResult | null) {
+  try {
+    if (result) {
+      localStorage.setItem(STORAGE_KEY_RESULT, JSON.stringify(result))
+    } else {
+      localStorage.removeItem(STORAGE_KEY_RESULT)
+    }
+  } catch {
+    // Silently fail if localStorage is full
+  }
+}
+
 export function FindJobsTab() {
   const info = useAsync(api.cycles, [])
   const [cycleKey, setCycleKey] = useState<string | null>(null)
@@ -30,7 +53,11 @@ export function FindJobsTab() {
   const [remote, setRemote] = useState(true)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<SearchResult | null>(null)
+  const [result, setResult] = useState<SearchResult | null>(() => loadCachedResult())
+  const [resultTimestamp, setResultTimestamp] = useState<number | null>(() => {
+    const cached = loadCachedResult()
+    return cached ? Date.now() : null
+  })
 
   useEffect(() => {
     if (info.data && cycleKey === null) {
@@ -39,6 +66,10 @@ export function FindJobsTab() {
       setSites(info.data.default_sites)
     }
   }, [info.data, cycleKey])
+
+  useEffect(() => {
+    saveCachedResult(result)
+  }, [result])
 
   function toggleTrack(t: string) {
     setTracks((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]))
@@ -56,6 +87,7 @@ export function FindJobsTab() {
     try {
       const r = await api.search({ tracks, kind: cycle.kind, location, remote, results_per: resultsPer, sites })
       setResult(r)
+      setResultTimestamp(Date.now())
     } catch (e) {
       setError(String((e as Error).message ?? e))
     } finally {
@@ -177,6 +209,11 @@ export function FindJobsTab() {
 
       {result && (
         <>
+          {resultTimestamp && (
+            <p className="text-xs text-muted-foreground">
+              Results from {new Date(resultTimestamp).toLocaleString()} {!running && '(cached — run search to refresh)'}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KpiCard label="Scraped" value={result.scraped} accent="slate" />
             <KpiCard label="On-target" value={result.n_on_target} sub={`of ${result.n_total} scored`} accent="green" />

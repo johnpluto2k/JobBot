@@ -7,6 +7,20 @@ import { ErrorNote } from '@/components/ErrorNote'
 import { api, type Company } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
+// Helper to parse JSON strings from database
+function parseJsonField(value: any): any[] {
+  if (Array.isArray(value)) return value
+  if (!value) return []
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value)
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 export function CompanyTrackerTab() {
   const companies = useAsync(api.companies, [])
   const [filter, setFilter] = useState<'all' | 'overdue'>('all')
@@ -95,7 +109,7 @@ export function CompanyTrackerTab() {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold">
-                {companies.data?.filter((c: Company) => c.tier === 'Big4').length ?? 0}
+                {companies.data?.filter((c: Company) => c.tier === 'Big4' || c.tier === 'Big 4').length ?? 0}
               </p>
               <p className="text-xs text-muted-foreground">Big 4 firms</p>
             </div>
@@ -184,28 +198,28 @@ export function CompanyTrackerTab() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
-                              {(company.portals ?? []).slice(0, 3).map((p) => (
+                              {parseJsonField(company.portals).slice(0, 3).map((p) => (
                                 <Badge key={p} variant="secondary" className="text-xs">
                                   {p}
                                 </Badge>
                               ))}
-                              {(company.portals ?? []).length > 3 && (
+                              {parseJsonField(company.portals).length > 3 && (
                                 <Badge variant="secondary" className="text-xs">
-                                  +{(company.portals ?? []).length - 3}
+                                  +{parseJsonField(company.portals).length - 3}
                                 </Badge>
                               )}
                             </div>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
-                              {(company.target_fields ?? []).slice(0, 2).map((f) => (
+                              {parseJsonField(company.target_fields).slice(0, 2).map((f) => (
                                 <Badge key={f} variant="secondary" className="text-xs">
                                   {f}
                                 </Badge>
                               ))}
-                              {(company.target_fields ?? []).length > 2 && (
+                              {parseJsonField(company.target_fields).length > 2 && (
                                 <Badge variant="secondary" className="text-xs">
-                                  +{(company.target_fields ?? []).length - 2}
+                                  +{parseJsonField(company.target_fields).length - 2}
                                 </Badge>
                               )}
                             </div>

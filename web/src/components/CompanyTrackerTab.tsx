@@ -22,17 +22,13 @@ function parseJsonField(value: any): any[] {
 }
 
 export function CompanyTrackerTab() {
-  const companies = useAsync(api.companies, [])
+  const [refreshKey, setRefreshKey] = useState(0)
   const [filter, setFilter] = useState<'all' | 'overdue'>('all')
   const [checking, setChecking] = useState<Set<number>>(new Set())
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
-  // Trigger refresh when needed
-  useEffect(() => {
-    if (refreshKey > 0) {
-      companies.refetch?.()
-    }
-  }, [refreshKey, companies])
+  // Include refreshKey in dependency array to trigger re-fetch on manual refresh
+  const companies = useAsync(api.companies, [refreshKey])
 
   const displayCompanies = companies.data
     ?.filter((c: Company) => {
@@ -61,16 +57,22 @@ export function CompanyTrackerTab() {
 
   async function markChecked(companyId: number) {
     setChecking((prev) => new Set(prev).add(companyId))
+    setError(null)
     try {
       const response = await fetch(`/api/companies/${companyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ next_check_in_days: 7 }),
       })
-      if (!response.ok) throw new Error('Failed to update company')
+      if (!response.ok) {
+        const statusText = response.statusText || `HTTP ${response.status}`
+        throw new Error(`Failed to mark checked: ${statusText}`)
+      }
       // Trigger refresh
       setRefreshKey((prev) => prev + 1)
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
       console.error('Error marking company checked:', err)
     } finally {
       setChecking((prev) => {
@@ -87,6 +89,9 @@ export function CompanyTrackerTab() {
 
   return (
     <div className="space-y-6">
+      {/* Error Message */}
+      {error && <ErrorNote error={error} />}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <Card>
@@ -179,6 +184,9 @@ export function CompanyTrackerTab() {
                       const isOverdue =
                         !company.next_check_due ||
                         new Date(company.next_check_due) <= new Date()
+                      // Cache parsed JSON fields to avoid re-parsing in each render
+                      const portals = parseJsonField(company.portals)
+                      const targetFields = parseJsonField(company.target_fields)
                       return (
                         <tr
                           key={company.id}
@@ -198,28 +206,28 @@ export function CompanyTrackerTab() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
-                              {parseJsonField(company.portals).slice(0, 3).map((p) => (
+                              {portals.slice(0, 3).map((p) => (
                                 <Badge key={p} variant="secondary" className="text-xs">
                                   {p}
                                 </Badge>
                               ))}
-                              {parseJsonField(company.portals).length > 3 && (
+                              {portals.length > 3 && (
                                 <Badge variant="secondary" className="text-xs">
-                                  +{parseJsonField(company.portals).length - 3}
+                                  +{portals.length - 3}
                                 </Badge>
                               )}
                             </div>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
-                              {parseJsonField(company.target_fields).slice(0, 2).map((f) => (
+                              {targetFields.slice(0, 2).map((f) => (
                                 <Badge key={f} variant="secondary" className="text-xs">
                                   {f}
                                 </Badge>
                               ))}
-                              {parseJsonField(company.target_fields).length > 2 && (
+                              {targetFields.length > 2 && (
                                 <Badge variant="secondary" className="text-xs">
-                                  +{parseJsonField(company.target_fields).length - 2}
+                                  +{targetFields.length - 2}
                                 </Badge>
                               )}
                             </div>

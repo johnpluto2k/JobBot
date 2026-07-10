@@ -38,7 +38,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
@@ -628,7 +628,10 @@ def mark_company_checked(company_id: int, req: MarkCheckedRequest) -> dict:
     """Mark a company as checked today, schedule next check."""
     from . import companies
 
-    return companies.mark_checked(company_id, req.next_check_in_days)
+    try:
+        return companies.mark_checked(company_id, req.next_check_in_days)
+    except ValueError as exc:
+        return {"error": str(exc)}
 
 
 # --- Serve the built React app (single-process mode) -------------------------

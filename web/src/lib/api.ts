@@ -337,9 +337,9 @@ export interface Company {
   name: string
   name_normalized?: string
   career_site_url?: string
-  ats_platform?: string
-  portals?: string[]
-  target_fields?: string[]
+  ats_platform?: string | string[]
+  portals?: string | string[]
+  target_fields?: string | string[]
   tier?: string
   notes?: string
   last_checked?: string

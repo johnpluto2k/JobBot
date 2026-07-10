@@ -37,37 +37,49 @@ def get_or_create(name: str, **kwargs) -> tuple[dict, bool]:
         if row:
             return dict(row), False
 
-        # Create new
+        # Create new with proper error handling for concurrent inserts
         portals_json = json.dumps(kwargs.get("portals", []))
         fields_json = json.dumps(kwargs.get("target_fields", []))
 
         today = date.today().isoformat()
         next_due = (date.today() + timedelta(days=7)).isoformat()
 
-        cur = con.execute("""
-            INSERT INTO companies
-            (name, name_normalized, career_site_url, ats_platform, portals, target_fields, tier, notes, last_checked, next_check_due)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            name,
-            name_norm,
-            kwargs.get("career_site_url"),
-            kwargs.get("ats_platform"),
-            portals_json,
-            fields_json,
-            kwargs.get("tier", "other"),
-            kwargs.get("notes"),
-            today,
-            next_due,
-        ))
-        con.commit()
+        try:
+            cur = con.execute("""
+                INSERT INTO companies
+                (name, name_normalized, career_site_url, ats_platform, portals, target_fields, tier, notes, last_checked, next_check_due)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                name,
+                name_norm,
+                kwargs.get("career_site_url"),
+                kwargs.get("ats_platform"),
+                portals_json,
+                fields_json,
+                kwargs.get("tier", "other"),
+                kwargs.get("notes"),
+                today,
+                next_due,
+            ))
+            con.commit()
 
-        # Fetch the new row
-        new_row = con.execute(
-            "SELECT * FROM companies WHERE id = ?",
-            (cur.lastrowid,)
-        ).fetchone()
-        return dict(new_row), True
+            # Fetch the new row
+            new_row = con.execute(
+                "SELECT * FROM companies WHERE id = ?",
+                (cur.lastrowid,)
+            ).fetchone()
+            return dict(new_row), True
+        except Exception as e:
+            con.rollback()
+            if "UNIQUE constraint failed" in str(e):
+                # Another thread created it first, fetch it
+                row = con.execute(
+                    "SELECT * FROM companies WHERE name_normalized = ?",
+                    (name_norm,)
+                ).fetchone()
+                if row:
+                    return dict(row), False
+            raise
     finally:
         con.close()
 
@@ -124,6 +136,8 @@ def mark_checked(company_id: int, next_check_in_days: int = 7) -> dict:
     """Mark a company as checked today, and schedule next check for today+N days.
 
     Returns: updated company dict
+
+    Raises: ValueError if company does not exist
     """
     con = connect()
     try:
@@ -137,7 +151,10 @@ def mark_checked(company_id: int, next_check_in_days: int = 7) -> dict:
         """, (today, next_due, company_id))
         con.commit()
 
-        return get_by_id(company_id)
+        result = get_by_id(company_id)
+        if result is None:
+            raise ValueError(f"Company {company_id} not found")
+        return result
     finally:
         con.close()
 
@@ -148,9 +165,16 @@ def update(company_id: int, **kwargs) -> dict:
     Kwargs: name, career_site_url, ats_platform, portals, target_fields, tier, notes
 
     Returns: updated company dict
+
+    Raises: ValueError if company does not exist
     """
     con = connect()
     try:
+        # Check company exists first
+        existing = get_by_id(company_id)
+        if existing is None:
+            raise ValueError(f"Company {company_id} not found")
+
         # Build the UPDATE statement dynamically
         allowed_fields = {
             "name", "career_site_url", "ats_platform", "portals",
@@ -159,7 +183,7 @@ def update(company_id: int, **kwargs) -> dict:
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
 
         if not updates:
-            return get_by_id(company_id)
+            return existing
 
         # Convert list fields to JSON
         if "portals" in updates and isinstance(updates["portals"], list):

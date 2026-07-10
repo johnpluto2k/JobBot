@@ -84,19 +84,21 @@ def log_job(
         company, created = companies.get_or_create(company_disp)
         company_id = company["id"]
 
-        # Create job entry
+        # Create job entry with company_id and notes
         today = date.today().isoformat()
         cur = con.execute("""
             INSERT INTO jobs
-            (title, company, url, site, status, date_posted, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            (company_id, title, company, url, site, status, date_posted, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         """, (
+            company_id,
             title.strip(),
             company_disp,
             url.strip(),
             portal_lower,
             status_lower,
             today,
+            notes,
         ))
         con.commit()
         job_id = cur.lastrowid

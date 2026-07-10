@@ -156,16 +156,16 @@ def run_migration(dry_run: bool = False, backup: bool = True) -> dict:
         for app in canonical_apps:
             company_disp = app["company"]
             company_roles = app["roles"]
+            company_norm = applications.canon(company_disp)
 
             # Find all job entries for this company (to gather career_site_url, portals, etc)
+            # Use exact normalized match to avoid merging data from different companies
             job_rows = con.execute("""
                 SELECT DISTINCT site, url, date_posted
                 FROM jobs
-                WHERE company IN (
-                    SELECT DISTINCT company FROM jobs WHERE LOWER(company) LIKE ?
-                )
+                WHERE company = ?
                 ORDER BY date_posted DESC
-            """, (f"%{company_disp.split()[0]}%",)).fetchall()
+            """, (company_disp,)).fetchall()
 
             # Merge data from job entries
             portals_set = set()
@@ -186,8 +186,16 @@ def run_migration(dry_run: bool = False, backup: bool = True) -> dict:
             ))
             target_fields = [f for f in target_fields if f != "Other"]
 
+            # Warn if no target fields were classified
+            if not target_fields:
+                print(f"  Warning: {company_disp} has no classified target fields (all roles were 'Other')")
+                target_fields = []
+
             # Tier
             tier = extract_tier(company_disp, master_profile) or "other"
+
+            # Store all ATS platforms found (not just the first one)
+            ats_platform_str = json.dumps(sorted(ats_platforms_set)) if ats_platforms_set else None
 
             try:
                 if dry_run:
@@ -199,8 +207,8 @@ def run_migration(dry_run: bool = False, backup: bool = True) -> dict:
                         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), date('now'), date('now', '+7 days'))
                     """, (
                         company_disp,
-                        applications.canon(company_disp),
-                        list(ats_platforms_set)[0] if ats_platforms_set else None,
+                        company_norm,
+                        ats_platform_str,
                         json.dumps(sorted(portals_set)),
                         json.dumps(target_fields),
                         tier,

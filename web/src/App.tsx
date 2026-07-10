@@ -24,6 +24,7 @@ import { AppHeader } from '@/components/AppHeader'
 import { ApplicationsTable } from '@/components/ApplicationsTable'
 import { BriefTab } from '@/components/BriefTab'
 import { CoachTab } from '@/components/CoachTab'
+import { CompanyTrackerTab } from '@/components/CompanyTrackerTab'
 import { ErrorNote } from '@/components/ErrorNote'
 import { FieldMix } from '@/components/FieldMix'
 import { FindJobsTab } from '@/components/FindJobsTab'
@@ -56,6 +57,7 @@ type PageKey =
   | 'coach'
   | 'applications'
   | 'pipeline'
+  | 'companies'
   | 'find'
   | 'studio'
   | 'score'
@@ -85,6 +87,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { key: 'applications', label: 'Applications', icon: Send },
       { key: 'pipeline', label: 'Pipeline', icon: Briefcase },
+      { key: 'companies', label: 'Companies', icon: Building2 },
       { key: 'find', label: 'Find Jobs', icon: Search },
     ],
   },
@@ -206,6 +209,8 @@ export default function App() {
             )}
           </div>
         )
+      case 'companies':
+        return <CompanyTrackerTab />
       case 'find':
         return <FindJobsTab />
       case 'studio':

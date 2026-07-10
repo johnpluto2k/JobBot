@@ -57,6 +57,54 @@ any other chat — reads this file automatically, so it has the same grounding
 and persona without needing anything scheduled or pre-connected. Just open a
 terminal in this folder, run `claude`, and ask a coaching question.
 
+## Manual job intake (company-first workflow)
+
+As of 2026-07-09, the **manual intake flow** is the primary way to log jobs:
+
+**When John finds a job and applies:**
+
+1. Get the posting URL, company name, and job title
+2. Run (or submit via the API):
+   ```bash
+   python -m job_bot.intake "<url>" "<company>" "<title>" [--portal linkedin] [--status applied]
+   ```
+   Portals: indeed, linkedin, jobright, glassdoor, ziprecruiter, workday, greenhouse, handshake, smith, email, other (default)
+   Statuses: applied, saved, rejected, offer (default: applied)
+
+3. The job appears in the company tracker and applications funnel immediately
+
+**If integrating with a form/UI:**
+
+POST to `/api/intake`:
+```json
+{
+  "url": "https://...",
+  "company": "KPMG",
+  "title": "Senior Auditor",
+  "portal": "linkedin",
+  "status": "applied"
+}
+```
+
+**The company tracker:**
+
+List all companies or only those overdue for a check:
+```bash
+# CLI (via Python):
+from job_bot import companies
+companies.list_all()              # all companies
+companies.due_for_check()         # overdue for check
+
+# API:
+GET /api/companies
+GET /api/companies?due_for_check=true
+```
+
+Mark a company as checked today (reschedule next check for 7 days out):
+```bash
+PATCH /api/companies/{id} { "next_check_in_days": 7 }
+```
+
 ## Browsing job boards: use `agent-browser`
 
 For any pipeline step that needs to browse or scrape a job board (or any other

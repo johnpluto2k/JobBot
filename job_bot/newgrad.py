@@ -15,7 +15,7 @@ Run it on a schedule (Task Scheduler / cron / a Claude cron task) and the
 from __future__ import annotations
 
 from .ats_engine import load_profile
-from .jobsearch import save_jobs, score_and_route, search
+from .deprecated.jobsearch import save_jobs, score_and_route, search
 
 # John's two active searches (he graduates May 2027):
 #   1) REMOTE internships he can do during Fall 2026 / Spring 2027 (part-time-friendly,

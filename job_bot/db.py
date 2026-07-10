@@ -171,6 +171,23 @@ CREATE TABLE IF NOT EXISTS jobs (
     seniority     TEXT,          -- intern | entry | mid | senior | lead | exec
     created_at    TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS companies (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    name              TEXT NOT NULL,
+    name_normalized   TEXT NOT NULL UNIQUE,
+    career_site_url   TEXT,
+    ats_platform      TEXT,        -- e.g. Workday, Greenhouse, iCIMS, ADP, BambooHR
+    portals           TEXT,        -- JSON list: ["Indeed", "LinkedIn", "Jobright", ...]
+    target_fields     TEXT,        -- JSON list: ["IT Audit", "Audit & Assurance", ...]
+    tier              TEXT,        -- Big4 | mid-tier | boutique | other
+    notes             TEXT,
+    last_checked      TEXT,        -- ISO date YYYY-MM-DD
+    next_check_due    TEXT,        -- ISO date YYYY-MM-DD
+    created_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_company_norm ON companies(name_normalized);
+CREATE INDEX IF NOT EXISTS idx_company_due ON companies(next_check_due);
 """
 
 
@@ -188,6 +205,11 @@ def _migrate(con: sqlite3.Connection) -> None:
                       ("seniority", "TEXT")):
         if col not in jcols:
             con.execute(f"ALTER TABLE jobs ADD COLUMN {col} {decl}")
+
+    # Companies table (created via SCHEMA, but migrations for new columns go here).
+    ccols = {r["name"] for r in con.execute("PRAGMA table_info(companies)")}
+    # (No additional columns to migrate yet; the table is created fresh in SCHEMA.)
+
     con.commit()
 
 

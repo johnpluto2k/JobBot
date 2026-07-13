@@ -13,6 +13,8 @@ export default defineConfig({
     // Talk to the FastAPI backend without CORS in dev: /api/* is proxied.
     proxy: {
       '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+      // OAuth entry point — the browser follows this straight to Google.
+      '/auth': { target: 'http://127.0.0.1:8000', changeOrigin: true },
     },
   },
 })

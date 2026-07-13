@@ -331,6 +331,29 @@ export interface CoachSnapshot {
   growth_error?: string
 }
 
+// --- Auth / Gmail sync ---------------------------------------------------------
+export interface AuthStatus {
+  logged_in: boolean
+  email: string | null
+  configured: boolean
+}
+export interface SyncResult {
+  scanned: number
+  new: number
+  skipped: number
+  noise: number
+  dropped: number
+  by_category: Record<string, number>
+}
+export interface SyncStatus {
+  gmail_connected: boolean
+  running: boolean
+  interval_minutes: number
+  last_sync: string | null
+  last_result: SyncResult | null
+  last_error: string | null
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`${path} → ${res.status} ${res.statusText}`)
@@ -348,6 +371,10 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
+  authStatus: () => get<AuthStatus>('/api/auth/status'),
+  logout: () => post<{ ok: boolean }>('/api/auth/logout', {}),
+  syncStatus: () => get<SyncStatus>('/api/sync-status'),
+  syncNow: () => post<SyncStatus>('/api/sync-now', {}),
   profile: () => get<Profile>('/api/profile'),
   overview: () => get<Overview>('/api/overview'),
   summary: () => get<Summary>('/api/summary'),

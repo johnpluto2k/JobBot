@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   FileCode2,
   GraduationCap,
+  LogOut,
   Menu,
   MessageCircle,
   Mic,
@@ -38,7 +39,9 @@ import { PipelineFunnel } from '@/components/PipelineFunnel'
 import { ProfilePanel } from '@/components/ProfilePanel'
 import { ResumeStudioTab } from '@/components/ResumeStudioTab'
 import { ScoreTab } from '@/components/ScoreTab'
-import { api } from '@/lib/api'
+import { SignInScreen } from '@/components/SignInScreen'
+import { SyncIndicator } from '@/components/SyncIndicator'
+import { api, type AuthStatus } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
 function SkeletonGrid() {
@@ -112,6 +115,31 @@ const PAGE_KEYS = new Set<string>(NAV.flatMap((s) => s.items.map((i) => i.key)))
 const STORAGE_KEY = 'jobbot.page'
 
 export default function App() {
+  // Auth gate: everything under /api/* is 401 until the Google login sets the
+  // session cookie, so don't mount the dashboard (and its fetches) before then.
+  const auth = useAsync(api.authStatus, [])
+
+  if (auth.loading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <div className="h-28 w-full max-w-sm animate-pulse rounded-2xl border border-border bg-card" />
+      </div>
+    )
+  }
+  if (auth.error) {
+    return (
+      <div className="mx-auto max-w-lg px-5 py-16">
+        <ErrorNote error={`Can't reach the API — is uvicorn running on :8000? (${auth.error})`} />
+      </div>
+    )
+  }
+  if (!auth.data?.logged_in) {
+    return <SignInScreen configured={auth.data?.configured ?? false} />
+  }
+  return <Dashboard auth={auth.data} />
+}
+
+function Dashboard({ auth }: { auth: AuthStatus }) {
   const profile = useAsync(api.profile, [])
   const summary = useAsync(api.summary, [])
   const apps = useAsync(api.applications, [])
@@ -130,6 +158,14 @@ export default function App() {
   function go(key: PageKey) {
     setPage(key)
     setNavOpen(false)
+  }
+
+  async function signOut() {
+    try {
+      await api.logout()
+    } finally {
+      window.location.reload() // re-runs the auth gate → sign-in screen
+    }
   }
 
   const s = summary.data
@@ -301,7 +337,19 @@ export default function App() {
       {/* Content */}
       <main className="min-w-0 flex-1">
         <div className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-10">
-          <AppHeader profile={profile.data} />
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <AppHeader profile={profile.data} />
+            <div className="flex items-center gap-2">
+              <SyncIndicator />
+              <button
+                onClick={signOut}
+                title={auth.email ? `Sign out (${auth.email})` : 'Sign out'}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <LogOut size={13} /> Sign out
+              </button>
+            </div>
+          </div>
 
           <div className="mt-8">
             {summary.error ? <ErrorNote error={summary.error} /> : summary.loading || !s ? <SkeletonGrid /> : renderPage()}

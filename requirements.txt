@@ -24,6 +24,12 @@ streamlit>=1.35
 fastapi>=0.110
 uvicorn[standard]>=0.29
 
+# --- Google login + autonomous Gmail sync (google_auth.py, gmail_client.py) ---
+google-api-python-client>=2.130
+google-auth>=2.29
+requests>=2.31
+apscheduler>=3.10
+
 # --- Browser automation (Phase 8) ---
 playwright>=1.44
 # After install, download the browser once:  python -m playwright install chromium

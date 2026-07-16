@@ -7,13 +7,22 @@ Tailwind v4, shadcn/ui primitives). It reads from a FastAPI layer
 `network_map.build_map`, `offers.compare`, and the Phase 2–3 scorer), so the
 numbers and verdicts match exactly.
 
-**Sections:** Overview (KPIs + funnel + field mix + profile), Applications
-(reconciled tracker), Pipeline (scored postings), Find Jobs (live board search
-by cycle + track), Network (coverage + gaps), Growth (certs/projects/insights),
-Offers (COL-adjusted comparison), Score a JD (interactive ATS + network verdict),
-Company Brief, LinkedIn optimizer, and Interview Lab (answer analysis) — plus a
-Coach chat tab. In single-server mode FastAPI serves this UI *and* the API on one
-port, fully replacing the Streamlit dashboard for daily use.
+**Sections** (grouped left sidebar, collapsible to a drawer on mobile):
+Overview (KPIs + funnel + field mix + profile), Coach (grounded LLM chat),
+Applications (reconciled tracker), Pipeline (scored postings), Find Jobs (live
+board search by cycle + track, with a job-board picker and results-per-role
+slider), Resume Studio (edit RenderCV YAML, render a Typst PDF preview,
+download `.pdf`/`.yaml`/`.typ`/`.docx`), Score a JD (interactive ATS + network
+verdict), LinkedIn optimizer, Network (coverage + gaps), Growth
+(certs/projects/insights), Offers (COL-adjusted comparison), Company Brief, and
+Interview Lab (answer analysis). In single-server mode FastAPI serves this UI
+*and* the API on one port, fully replacing the Streamlit dashboard for daily use.
+
+**Auth:** the app mounts behind a `SignInScreen` — everything under `/api/*`
+(except `health` / `auth/status`) requires the Google session cookie minted by
+`/auth/callback` (see `job_bot/google_auth.py`). After sign-in the header shows
+a `SyncIndicator` chip (last Gmail sync / new items / manual "sync now") and a
+sign-out button; Gmail auto-syncs every 15 minutes server-side.
 
 ## Architecture
 
@@ -57,12 +66,23 @@ npm run dev                              # http://localhost:5173
 | `GET /api/growth`       | Prioritized growth plan (certs, projects, insights)         |
 | `GET /api/offers`       | COL-adjusted offer comparison (`?money=&growth=&fit=`)      |
 | `POST /api/score`       | Live ATS + network verdict for a pasted JD                  |
-| `GET /api/cycles`       | Hiring cycles (from grad date) + career tracks             |
-| `POST /api/search`      | Live job-board search for chosen tracks/cycle (scrapes)     |
+| `GET /api/cycles`       | Hiring cycles (from grad date) + career tracks + job sites |
+| `POST /api/search`      | Live job-board search for chosen tracks/cycle/sites (scrapes)|
 | `POST /api/brief`       | Company research brief (+ LLM narrative)                    |
 | `POST /api/linkedin`    | LinkedIn headline/About/skills audit                        |
 | `POST /api/recording`   | Interview answer analysis (STAR, pacing, fillers)           |
-| `GET /api/health`       | Liveness + DB presence                                      |
+| `POST /api/coach`       | Career Coach chat turn (grounded in the live pipeline)      |
+| `GET /api/resume-studio/sources` | Editable resume sources (master profile / applications) |
+| `GET /api/resume-studio/yaml`    | RenderCV YAML text for a source (`?source=`)        |
+| `POST /api/resume-studio/render` | Typeset edited YAML → `pdf_b64` + Typst source      |
+| `GET /api/resume-studio/docx`    | ATS-clean `.docx` for a source (`docx_b64`)         |
+| `GET /auth/login`       | Start the Google OAuth consent flow                         |
+| `GET /auth/callback`    | Store refresh token + set the session cookie                |
+| `GET /api/auth/status`  | `{logged_in, email, configured}` (open, no cookie needed)   |
+| `POST /api/auth/logout` | Clear the session                                           |
+| `GET /api/sync-status`  | Last Gmail sync, new-item counts, running flag              |
+| `POST /api/sync-now`    | Run a Gmail sync immediately                                |
+| `GET /api/health`       | Liveness + DB presence (open, no cookie needed)             |
 
 ## Layout
 
@@ -70,6 +90,10 @@ npm run dev                              # http://localhost:5173
 - `src/lib/useAsync.ts` — tiny fetch-on-mount hook (no react-query needed)
 - `src/components/ui/*` — shadcn primitives (card, badge, table, tabs)
 - `src/components/*` — dashboard blocks (KpiCard, PipelineFunnel, FieldMix, tables, header)
+- `src/components/SignInScreen.tsx` — Google sign-in gate shown until the session cookie exists
+- `src/components/SyncIndicator.tsx` — header chip: last Gmail sync / new items / manual sync
+- `src/components/ResumeStudioTab.tsx` — YAML editor + Typst PDF preview + downloads
+- `src/App.tsx` — auth gate + grouped sidebar nav (state in `localStorage`)
 - `src/index.css` — Job Bot design tokens ported to shadcn's CSS-variable contract
 
 ## Production build

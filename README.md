@@ -27,52 +27,42 @@ UI is now a modern **React dashboard** (`web/`, Vite + Tailwind + shadcn-style
 components) served by a thin **FastAPI** layer (`job_bot/api.py`) that reuses the
 exact same Python logic — so every number matches. In single-server mode one
 `uvicorn` process serves both the UI and the API on **port 8000**. It adds an
-LLM **Career Coach** chat grounded in your live pipeline. See
+LLM **Career Coach** chat grounded in your live pipeline, is gated behind
+**Sign in with Google**, and keeps the tracker fresh with an **autonomous Gmail
+sync** every 15 minutes. See
 [Phase 9 — the dashboard](#phase-9--the-dashboard-control-center--front-end).
 
-## ⏳ IN PROGRESS — React front end: sidebar nav + Resume Studio (handoff)
+## 🔐 Google sign-in + autonomous Gmail sync (2026-07-13)
 
-Half-finished work from 2026-07-05, expanding the Find Jobs upgrades + Resume
-Studio (see [`docs/prompts/findjobs_resume_studio.md`](docs/prompts/findjobs_resume_studio.md),
-already fully done on the Streamlit side) into the **React** front end, and
-replacing the React app's horizontally-scrolling tab strip with **sidebar
-navigation**. None of the new front-end code has been built or tested yet.
+The React dashboard is now a signed-in app, and recruiter email flows into the
+tracker on its own:
 
-**Done (backend, `job_bot/api.py`):**
-- `SearchRequest` gained `sites: list[str]` (default `["indeed"]`), passed into
-  `newgrad.run(sites=...)`; `results_per` cap raised 25 → 50.
-- `/api/cycles` now also returns `sites` + `default_sites` for the UI.
-- New Resume Studio endpoints (resume-as-code; RenderCV 2.x = **Typst**, no
-  LaTeX/Overleaf — see the deviation note in the prompts index):
-  `GET /api/resume-studio/sources`, `GET /api/resume-studio/yaml?source=`,
-  `POST /api/resume-studio/render` (returns `pdf_b64` + `typ` text),
-  `GET /api/resume-studio/docx?source=` (returns `docx_b64`).
-
-**Done (web/):**
-- `src/lib/api.ts` — Studio types + `studioSources/studioYaml/studioRender/
-  studioDocx` client methods; `search()` body accepts `sites`;
-  `CyclesInfo` gained `sites`/`default_sites`.
-- `src/components/ResumeStudioTab.tsx` — new page: source picker (master
-  profile or any application with a `resume.yaml`), editable YAML textarea,
-  Render PDF (inline data-URI iframe preview), downloads for
-  `.pdf`/`.yaml`/`.typ`, typst.app link, `.docx` download.
-
-**Remaining:**
-1. `src/components/FindJobsTab.tsx` — add the job-boards multiselect (seed
-   from `cycles.default_sites`, badge toggles like the tracks row), a
-   results-per-role slider 5–50, a request-volume caption, pass
-   `sites`/`results_per` into `api.search`, make the "Live-scrapes Indeed"
-   copy reflect the selection, disable search when no site is picked.
-2. `src/App.tsx` — **the main ask**: replace the `<Tabs>` horizontal strip
-   (the "swipe" bar) with a left **sidebar** (icons + labels, active state,
-   collapsible to a drawer on mobile), driven by `useState` +
-   `localStorage`; mount `<ResumeStudioTab />` as a new page in it.
-3. Build + verify: `cd web && npm run build` (tsc catches type errors), boot
-   `uvicorn job_bot.api:app` and smoke-test the four studio endpoints
-   (FastAPI `TestClient` works), then eyeball the sidebar + studio in the
-   browser.
-4. Update this README (fold this section into the Phase 9 docs when done) and
-   flip the note in `docs/prompts/README.md`.
+- **Sign in with Google** (`job_bot/google_auth.py`) — a hand-rolled OAuth
+  authorization-code flow (scopes: `openid`, `email`, `profile`,
+  `gmail.readonly` — read-only; the app never sends or modifies mail).
+  `/auth/login` sends the browser to Google; the callback stores the refresh
+  token in `data/google_token.json` (gitignored) and mints a single-user
+  session cookie. Everything under `/api/*` (except `health` / `auth/status`)
+  requires that cookie — the web app shows a `SignInScreen` until you're in,
+  and a sign-out button after.
+- **Autonomous Gmail sync** (`job_bot/gmail_client.py`) — pulls recent
+  job-related threads via the Gmail API and feeds them through the existing
+  `gmail_sync` classification pipeline (deduped status updates: interviews,
+  rejections, offers, recruiter outreach). Runs automatically **every 15
+  minutes** (APScheduler, one-sync-at-a-time lock) while the server is up,
+  plus immediately after sign-in; a **SyncIndicator** chip in the dashboard
+  header shows last sync / new items and offers a manual "sync now"
+  (`POST /api/sync-now`).
+- **Setup (one time):** create an OAuth 2.0 *Web application* client in Google
+  Cloud Console with `http://localhost:8000/auth/callback` as an authorized
+  redirect URI, enable the Gmail API, then set `GOOGLE_CLIENT_ID` /
+  `GOOGLE_CLIENT_SECRET` (and optionally `GOOGLE_REDIRECT_URI`) in `.env` —
+  see `.env.example`. Optional tuning: `GMAIL_SYNC_DAYS`,
+  `GMAIL_SYNC_MAX_THREADS`, `GMAIL_SYNC_QUERY`.
+- **No secrets in git:** client id/secret live in `.env` (gitignored);
+  tokens, session, and sync status live under `data/` (gitignored).
+- **Tests:** `python -m tests.test_gmail_client` — offline transform-boundary
+  tests, no network needed.
 
 Phase 1 reads every resume / cover letter / project doc, extracts a structured
 `MasterProfile`, stores it in a local vector DB, and writes `master_profile.json`
@@ -96,6 +86,8 @@ pip install -r requirements.txt
 python -m job_bot.build_profile
 
 # 4a. open the React dashboard (recommended) — one server serves UI + API
+#     (set GOOGLE_CLIENT_ID/SECRET in .env first — the dashboard is behind
+#      Sign in with Google; see the section above)
 cd web && npm install && npm run build && cd ..   # first time only (builds web/dist)
 uvicorn job_bot.api:app --port 8000               # → http://localhost:8000
 
@@ -131,7 +123,10 @@ Job Bot/
 │   └── backups/              # timestamped DB backups
 ├── documents/        # your resumes / cover letters / transcripts / avatar — gitignored
 ├── docs/             # project docs: master plan, resume_branding_playbook.md
-│   └── prompts/      #   one-off Claude Code prompt specs (see docs/prompts/README.md)
+│   ├── prompts/      #   one-off Claude Code prompt specs (see docs/prompts/README.md)
+│   └── archive/      #   historical setup docs (e.g. the multi-agent pipeline spec)
+├── daily_pipeline_prompt.md   # the unattended daily-pipeline prompt (run by
+│                              #   run-job-bot-pipeline.cmd — keep at repo root)
 ├── README.md  ·  requirements.txt
 ```
 
@@ -346,9 +341,15 @@ uvicorn job_bot.api:app --reload --port 8000   # terminal 1 — API
 cd web && npm run dev                           # terminal 2 — UI on :5173
 ```
 
-**11 tabs:** Overview (KPIs + funnel + field mix + profile), **Coach** (LLM
-career chat grounded in your live pipeline), Applications, Pipeline, Find Jobs,
-Network, Growth, Offers, Score a JD, Company Brief, LinkedIn, Interview Lab.
+**13 sections in a grouped sidebar** (collapsible to a drawer on mobile — the
+old horizontally-scrolling tab strip is gone): Overview (KPIs + funnel + field
+mix + profile), **Coach** (LLM career chat grounded in your live pipeline),
+Applications, Pipeline, Find Jobs (job-board picker + results-per-role slider),
+**Resume Studio** (edit the RenderCV YAML as text, render a Typst PDF preview,
+download `.pdf`/`.yaml`/`.typ`/`.docx`), Score a JD, LinkedIn, Network, Growth,
+Offers, Company Brief, Interview Lab. The app is gated behind **Sign in with
+Google** and shows a live Gmail **sync indicator** in the header (see the
+[Google sign-in section](#-google-sign-in--autonomous-gmail-sync-2026-07-13)).
 Details + the endpoint map are in [`web/README.md`](web/README.md).
 
 ### Streamlit dashboard (classic)
@@ -459,6 +460,8 @@ job_bot/
   ui.py              dashboard design system (components, theme)
   api.py             FastAPI JSON layer for the React dashboard (also serves web/dist)
   coach.py           Career Coach — live-pipeline snapshot + grounded LLM chat
+  google_auth.py     Google OAuth (openid/email/profile/gmail.readonly) + session cookie
+  gmail_client.py    Gmail API fetch -> gmail_sync pipeline; 15-min background sync
 
   intake.py          import personal spreadsheets (alumni workbook, job tracker)
   gmail_sync.py      Gmail MCP threads -> classified, deduped pipeline updates
@@ -687,8 +690,10 @@ python -m tests.test_pipeline      # plain script, no pytest needed
 python -m pytest tests/            # also pytest-compatible
 ```
 
-Still pending: re-auth the Gmail / Google Calendar MCPs so inbox triage and the
-prep planner run live instead of on demo data.
+Gmail now runs live without any MCP: the built-in Google sign-in + 15-minute
+background sync (see the [Google sign-in section](#-google-sign-in--autonomous-gmail-sync-2026-07-13))
+feeds inbox triage real recruiter email. Still pending: wire Google Calendar
+(MCP or API) so the prep planner can create events directly instead of via `.ics`.
 
 ## Graceful degradation
 

@@ -15,7 +15,7 @@ export function ErrorNote({
   return (
     <Card className="border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
       <p className="font-medium">{title}</p>
-      <p className="mt-1 break-words text-destructive/80">{error}</p>
+      <p className="mt-1 whitespace-pre-wrap break-words text-destructive/80">{error}</p>
       {showStartHint && (
         <p className="mt-3 text-muted-foreground">
           Start the server from the project root:{' '}

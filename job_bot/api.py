@@ -410,14 +410,17 @@ def studio_yaml(source: str = PROFILE_SOURCE) -> dict:
     """The starting RenderCV YAML for a source (JSON text — valid YAML), plus the
     classified career `field` and `suggested_renderer` so the UI can default its
     template control to match the application's field."""
-    field, suggested = _studio_field_and_renderer(source)
-    if source == PROFILE_SOURCE:
-        from .render_rendercv import resume_to_rendercv_dict
+    try:
+        field, suggested = _studio_field_and_renderer(source)
+        if source == PROFILE_SOURCE:
+            from .render_rendercv import resume_to_rendercv_dict
 
-        resume, _ = _studio_build_resume()
-        return {"yaml": json.dumps(resume_to_rendercv_dict(resume),
-                                   indent=2, ensure_ascii=False),
-                "field": field, "suggested_renderer": suggested}
+            resume, _ = _studio_build_resume()
+            return {"yaml": json.dumps(resume_to_rendercv_dict(resume),
+                                       indent=2, ensure_ascii=False),
+                    "field": field, "suggested_renderer": suggested}
+    except SystemExit as exc:  # load_profile exits if master_profile.json is missing
+        return {"error": str(exc)}
     path = config.OUTPUT_DIR / "applications" / source / "resume.yaml"
     if not path.is_file() or path.resolve().parent.parent != \
             (config.OUTPUT_DIR / "applications").resolve():
@@ -446,7 +449,10 @@ def studio_render(req: StudioRenderRequest) -> dict:
         return {"error": str(exc)}
     from .ats_engine import load_profile
     from .tailor import resume_basename
-    _person = (load_profile(None).get("personal") or {}).get("name")
+    try:  # profile only feeds the download filename — don't fail a good render
+        _person = (load_profile(None).get("personal") or {}).get("name")
+    except SystemExit:
+        _person = None
     return {
         "pdf_b64": base64.b64encode(outs["pdf"].read_bytes()).decode("ascii"),
         "typ": outs["typ"].read_text(encoding="utf-8") if outs.get("typ") else None,
@@ -459,24 +465,27 @@ def studio_docx(source: str = PROFILE_SOURCE) -> dict:
     """The classic .docx render (base64) — generate.py's python-docx path,
     kept as a renderer choice alongside the Typst PDF."""
     from .tailor import resume_basename
-    if source == PROFILE_SOURCE:
-        from .render_docx import render_docx
+    try:
+        if source == PROFILE_SOURCE:
+            from .render_docx import render_docx
 
-        resume, prof = _studio_build_resume()
-        work = config.OUTPUT_DIR / "resume_studio" / "web"
-        work.mkdir(parents=True, exist_ok=True)
-        path = render_docx(resume, work / "resume.docx")
-        person = (prof.get("personal") or {}).get("name")
-        company = None
-    else:
-        path = config.OUTPUT_DIR / "applications" / source / "resume.docx"
-        if not path.is_file() or path.resolve().parent.parent != \
-                (config.OUTPUT_DIR / "applications").resolve():
-            return {"error": f"no resume.docx for '{source}' — re-run "
-                             "python -m job_bot.generate for it"}
-        from .ats_engine import load_profile
-        person = (load_profile(None).get("personal") or {}).get("name")
-        company = source.split("_", 1)[0]  # slug is company_role
+            resume, prof = _studio_build_resume()
+            work = config.OUTPUT_DIR / "resume_studio" / "web"
+            work.mkdir(parents=True, exist_ok=True)
+            path = render_docx(resume, work / "resume.docx")
+            person = (prof.get("personal") or {}).get("name")
+            company = None
+        else:
+            path = config.OUTPUT_DIR / "applications" / source / "resume.docx"
+            if not path.is_file() or path.resolve().parent.parent != \
+                    (config.OUTPUT_DIR / "applications").resolve():
+                return {"error": f"no resume.docx for '{source}' — re-run "
+                                 "python -m job_bot.generate for it"}
+            from .ats_engine import load_profile
+            person = (load_profile(None).get("personal") or {}).get("name")
+            company = source.split("_", 1)[0]  # slug is company_role
+    except SystemExit as exc:  # load_profile exits if master_profile.json is missing
+        return {"error": str(exc)}
     return {"docx_b64": base64.b64encode(path.read_bytes()).decode("ascii"),
             "name": resume_basename(person, company) + ".docx"}
 

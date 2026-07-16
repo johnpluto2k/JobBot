@@ -3,6 +3,7 @@ import { Download, ExternalLink, FileCode2, FileText, Loader2, Printer, Sparkles
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { ErrorNote } from '@/components/ErrorNote'
 import { api, type StudioRender, type StudioSource } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
@@ -211,9 +212,7 @@ export function ResumeStudioTab() {
                 The rendercv CLI typesets via Typst — usually 10–30s. Hang tight.
               </p>
             )}
-            {error && (
-              <p className="whitespace-pre-wrap break-words text-sm text-destructive">{error}</p>
-            )}
+            {error && <ErrorNote error={error} title="Render failed." showStartHint={false} />}
           </div>
         </CardContent>
       </Card>

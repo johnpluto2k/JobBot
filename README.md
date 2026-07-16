@@ -30,50 +30,6 @@ exact same Python logic — so every number matches. In single-server mode one
 LLM **Career Coach** chat grounded in your live pipeline. See
 [Phase 9 — the dashboard](#phase-9--the-dashboard-control-center--front-end).
 
-## ⏳ IN PROGRESS — React front end: sidebar nav + Resume Studio (handoff)
-
-Half-finished work from 2026-07-05, expanding the Find Jobs upgrades + Resume
-Studio (see [`docs/prompts/findjobs_resume_studio.md`](docs/prompts/findjobs_resume_studio.md),
-already fully done on the Streamlit side) into the **React** front end, and
-replacing the React app's horizontally-scrolling tab strip with **sidebar
-navigation**. None of the new front-end code has been built or tested yet.
-
-**Done (backend, `job_bot/api.py`):**
-- `SearchRequest` gained `sites: list[str]` (default `["indeed"]`), passed into
-  `newgrad.run(sites=...)`; `results_per` cap raised 25 → 50.
-- `/api/cycles` now also returns `sites` + `default_sites` for the UI.
-- New Resume Studio endpoints (resume-as-code; RenderCV 2.x = **Typst**, no
-  LaTeX/Overleaf — see the deviation note in the prompts index):
-  `GET /api/resume-studio/sources`, `GET /api/resume-studio/yaml?source=`,
-  `POST /api/resume-studio/render` (returns `pdf_b64` + `typ` text),
-  `GET /api/resume-studio/docx?source=` (returns `docx_b64`).
-
-**Done (web/):**
-- `src/lib/api.ts` — Studio types + `studioSources/studioYaml/studioRender/
-  studioDocx` client methods; `search()` body accepts `sites`;
-  `CyclesInfo` gained `sites`/`default_sites`.
-- `src/components/ResumeStudioTab.tsx` — new page: source picker (master
-  profile or any application with a `resume.yaml`), editable YAML textarea,
-  Render PDF (inline data-URI iframe preview), downloads for
-  `.pdf`/`.yaml`/`.typ`, typst.app link, `.docx` download.
-
-**Remaining:**
-1. `src/components/FindJobsTab.tsx` — add the job-boards multiselect (seed
-   from `cycles.default_sites`, badge toggles like the tracks row), a
-   results-per-role slider 5–50, a request-volume caption, pass
-   `sites`/`results_per` into `api.search`, make the "Live-scrapes Indeed"
-   copy reflect the selection, disable search when no site is picked.
-2. `src/App.tsx` — **the main ask**: replace the `<Tabs>` horizontal strip
-   (the "swipe" bar) with a left **sidebar** (icons + labels, active state,
-   collapsible to a drawer on mobile), driven by `useState` +
-   `localStorage`; mount `<ResumeStudioTab />` as a new page in it.
-3. Build + verify: `cd web && npm run build` (tsc catches type errors), boot
-   `uvicorn job_bot.api:app` and smoke-test the four studio endpoints
-   (FastAPI `TestClient` works), then eyeball the sidebar + studio in the
-   browser.
-4. Update this README (fold this section into the Phase 9 docs when done) and
-   flip the note in `docs/prompts/README.md`.
-
 Phase 1 reads every resume / cover letter / project doc, extracts a structured
 `MasterProfile`, stores it in a local vector DB, and writes `master_profile.json`
 — the source of truth every later module references.
@@ -346,10 +302,23 @@ uvicorn job_bot.api:app --reload --port 8000   # terminal 1 — API
 cd web && npm run dev                           # terminal 2 — UI on :5173
 ```
 
-**11 tabs:** Overview (KPIs + funnel + field mix + profile), **Coach** (LLM
-career chat grounded in your live pipeline), Applications, Pipeline, Find Jobs,
-Network, Growth, Offers, Score a JD, Company Brief, LinkedIn, Interview Lab.
-Details + the endpoint map are in [`web/README.md`](web/README.md).
+**13 pages behind a grouped sidebar** (collapses to a drawer on narrow
+viewports; the active page persists via `localStorage`):
+
+- **Overview** — Overview (KPIs + funnel + field mix + profile), **Coach**
+  (LLM career chat grounded in your live pipeline)
+- **Pipeline** — Applications, Pipeline, Find Jobs (job-board picker seeded
+  from `/api/cycles` `default_sites`, results-per-role slider 5–50)
+- **Build** — **Resume Studio** (edit the RenderCV YAML as text, typeset to a
+  Typst PDF, download `.pdf`/`.yaml`/`.typ` or the classic `.docx`),
+  Score a JD, LinkedIn
+- **Network & Growth** — Network, Growth, Offers, Company Brief, Interview Lab
+
+Every page follows one action pattern: a single primary button (bottom-right
+of its card, `Loader2` + verb-ing label while running); secondary actions are
+`outline`/`ghost` or icon-only. API/action failures render through the shared
+`ErrorNote` panel. Details + the endpoint map are in
+[`web/README.md`](web/README.md).
 
 ### Streamlit dashboard (classic)
 

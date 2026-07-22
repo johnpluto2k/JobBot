@@ -7,13 +7,23 @@ Tailwind v4, shadcn/ui primitives). It reads from a FastAPI layer
 `network_map.build_map`, `offers.compare`, and the Phase 2–3 scorer), so the
 numbers and verdicts match exactly.
 
-**Sections:** Overview (KPIs + funnel + field mix + profile), Applications
-(reconciled tracker), Pipeline (scored postings), Find Jobs (live board search
-by cycle + track), Network (coverage + gaps), Growth (certs/projects/insights),
-Offers (COL-adjusted comparison), Score a JD (interactive ATS + network verdict),
-Company Brief, LinkedIn optimizer, and Interview Lab (answer analysis) — plus a
-Coach chat tab. In single-server mode FastAPI serves this UI *and* the API on one
-port, fully replacing the Streamlit dashboard for daily use.
+**13 pages behind a grouped sidebar** (drawer below the `md` breakpoint; the
+active page persists via `localStorage`, no router dependency):
+
+- **Overview** — Overview (KPIs + funnel + field mix + profile), Coach (LLM
+  chat grounded in the live pipeline)
+- **Pipeline** — Applications (reconciled tracker), Pipeline (scored
+  postings), Find Jobs (live board search by cycle + track, job-board picker,
+  results-per-role slider)
+- **Build** — Resume Studio (editable RenderCV YAML → Typst PDF, plus the
+  classic `.docx`), Score a JD (interactive ATS + network verdict), LinkedIn
+  optimizer
+- **Network & Growth** — Network (coverage + gaps), Growth
+  (certs/projects/insights), Offers (COL-adjusted comparison), Company Brief,
+  Interview Lab (answer analysis)
+
+In single-server mode FastAPI serves this UI *and* the API on one port, fully
+replacing the Streamlit dashboard for daily use.
 
 ## Architecture
 
@@ -57,8 +67,13 @@ npm run dev                              # http://localhost:5173
 | `GET /api/growth`       | Prioritized growth plan (certs, projects, insights)         |
 | `GET /api/offers`       | COL-adjusted offer comparison (`?money=&growth=&fit=`)      |
 | `POST /api/score`       | Live ATS + network verdict for a pasted JD                  |
-| `GET /api/cycles`       | Hiring cycles (from grad date) + career tracks             |
-| `POST /api/search`      | Live job-board search for chosen tracks/cycle (scrapes)     |
+| `GET /api/cycles`       | Hiring cycles (from grad date), career tracks, job-board sites + defaults |
+| `POST /api/search`      | Live job-board search for chosen tracks/cycle/sites (scrapes) |
+| `GET /api/resume-studio/sources` | Résumé sources (master profile + generated application folders) |
+| `GET /api/resume-studio/yaml`    | RenderCV YAML for a source (`?source=`) + suggested renderer |
+| `POST /api/resume-studio/render` | Typeset edited YAML via RenderCV/Typst → `pdf_b64` + `.typ` text |
+| `GET /api/resume-studio/docx`    | Classic python-docx résumé for a source (`docx_b64`)  |
+| `POST /api/coach`       | Coach chat turn grounded in the live snapshot               |
 | `POST /api/brief`       | Company research brief (+ LLM narrative)                    |
 | `POST /api/linkedin`    | LinkedIn headline/About/skills audit                        |
 | `POST /api/recording`   | Interview answer analysis (STAR, pacing, fillers)           |
@@ -68,8 +83,8 @@ npm run dev                              # http://localhost:5173
 
 - `src/lib/api.ts` — typed client + status→badge mapping
 - `src/lib/useAsync.ts` — tiny fetch-on-mount hook (no react-query needed)
-- `src/components/ui/*` — shadcn primitives (card, badge, table, tabs)
-- `src/components/*` — dashboard blocks (KpiCard, PipelineFunnel, FieldMix, tables, header)
+- `src/components/ui/*` — shadcn primitives (card, badge, button, table, input, textarea)
+- `src/components/*` — dashboard blocks (KpiCard, PipelineFunnel, FieldMix, ErrorNote, tables, header) + one component per page
 - `src/index.css` — Job Bot design tokens ported to shadcn's CSS-variable contract
 
 ## Production build

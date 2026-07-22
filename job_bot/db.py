@@ -152,6 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_scrape_term ON scrape_log(term, location);
 
 CREATE TABLE IF NOT EXISTS jobs (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id    INTEGER,       -- FK to companies table
     title         TEXT,
     company       TEXT,
     location      TEXT,
@@ -164,6 +165,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     priority      REAL,
     status        TEXT DEFAULT 'new',   -- new | applied | networking | interview | rejected | offer
     description   TEXT,
+    notes         TEXT,          -- user notes about the application
     legit_score   REAL,          -- 0-100 posting legitimacy (higher = safer)
     legit_grade   TEXT,          -- ✅ Likely legit | ⚠️ Verify first | 🚩 High risk
     legit_flags   TEXT,          -- human-readable scam/ghost signals found
@@ -171,6 +173,23 @@ CREATE TABLE IF NOT EXISTS jobs (
     seniority     TEXT,          -- intern | entry | mid | senior | lead | exec
     created_at    TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS companies (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    name              TEXT NOT NULL,
+    name_normalized   TEXT NOT NULL UNIQUE,
+    career_site_url   TEXT,
+    ats_platform      TEXT,        -- JSON list or single platform: ["Workday", "Greenhouse"] or "Workday"
+    portals           TEXT,        -- JSON list: ["Indeed", "LinkedIn", "Jobright", ...]
+    target_fields     TEXT,        -- JSON list: ["IT Audit", "Audit & Assurance", ...]
+    tier              TEXT,        -- Big4 | mid-tier | boutique | other
+    notes             TEXT,
+    last_checked      TEXT,        -- ISO date YYYY-MM-DD
+    next_check_due    TEXT,        -- ISO date YYYY-MM-DD
+    created_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_company_norm ON companies(name_normalized);
+CREATE INDEX IF NOT EXISTS idx_company_due ON companies(next_check_due);
 """
 
 
@@ -181,6 +200,14 @@ def _migrate(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE tracked_emails ADD COLUMN gmail_id TEXT")
     con.execute("CREATE INDEX IF NOT EXISTS idx_email_gmail ON tracked_emails(gmail_id)")
 
+    # Add missing columns to jobs table
+    job_cols = {r["name"] for r in con.execute("PRAGMA table_info(jobs)")}
+    if "company_id" not in job_cols:
+        con.execute("ALTER TABLE jobs ADD COLUMN company_id INTEGER")
+    if "notes" not in job_cols:
+        con.execute("ALTER TABLE jobs ADD COLUMN notes TEXT")
+    con.commit()
+
     # Legitimacy + apply-gate columns on jobs (career-ops Block G integration).
     jcols = {r["name"] for r in con.execute("PRAGMA table_info(jobs)")}
     for col, decl in (("legit_score", "REAL"), ("legit_grade", "TEXT"),
@@ -188,6 +215,11 @@ def _migrate(con: sqlite3.Connection) -> None:
                       ("seniority", "TEXT")):
         if col not in jcols:
             con.execute(f"ALTER TABLE jobs ADD COLUMN {col} {decl}")
+
+    # Companies table (created via SCHEMA, but migrations for new columns go here).
+    ccols = {r["name"] for r in con.execute("PRAGMA table_info(companies)")}
+    # (No additional columns to migrate yet; the table is created fresh in SCHEMA.)
+
     con.commit()
 
 

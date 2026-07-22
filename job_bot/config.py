@@ -42,11 +42,11 @@ PROFILE_JSON = OUTPUT_DIR / "master_profile.json"
 RAW_TEXT_DIR = OUTPUT_DIR / "raw_text"
 CHROMA_DIR = OUTPUT_DIR / "chroma"
 
-# LLM settings. The plan targets claude-sonnet-4-6 for judgment-heavy calls
+# LLM settings. The plan targets claude-sonnet-5 for judgment-heavy calls
 # (cover letters, extraction); mechanical calls (bullet rephrasing) route to
 # the cheaper/faster model below.
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
 ANTHROPIC_MODEL_FAST = os.getenv("ANTHROPIC_MODEL_FAST", "claude-haiku-4-5-20251001")
 
 # File types we know how to read.

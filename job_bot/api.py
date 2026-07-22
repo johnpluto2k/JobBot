@@ -38,7 +38,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
@@ -573,6 +573,74 @@ def coach_chat(req: CoachRequest) -> dict:
         return {"reply": coach.chat(msgs)}
     except Exception as exc:  # surface LLM/errors to the chat, don't 500
         return {"reply": None, "error": str(exc)}
+
+
+class IntakeRequest(BaseModel):
+    url: str
+    company: str
+    title: str
+    portal: str = "other"
+    status: str = "applied"
+    notes: str | None = None
+
+
+@app.post("/api/intake")
+def intake(req: IntakeRequest) -> dict:
+    """Log a job John found and applied to manually.
+
+    Returns: { id, company_id, company_name, job_title, url, status, portal, logged_at }
+    or { error: "..." } if validation fails.
+    """
+    from . import intake
+
+    try:
+        return intake.log_job(
+            url=req.url,
+            company_name=req.company,
+            title=req.title,
+            portal=req.portal,
+            status=req.status,
+            notes=req.notes,
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+
+@app.get("/api/companies")
+def companies_list(due_for_check: bool = False) -> list[dict]:
+    """List all companies, or only those due for check.
+
+    Returns: list of company records with all fields.
+    """
+    from . import companies
+
+    if due_for_check:
+        return companies.due_for_check()
+    else:
+        return companies.list_all()
+
+
+@app.get("/api/companies/{company_id}")
+def get_company(company_id: int) -> dict | None:
+    """Get a single company by ID."""
+    from . import companies
+
+    return companies.get_by_id(company_id)
+
+
+class MarkCheckedRequest(BaseModel):
+    next_check_in_days: int = 7
+
+
+@app.patch("/api/companies/{company_id}")
+def mark_company_checked(company_id: int, req: MarkCheckedRequest) -> dict:
+    """Mark a company as checked today, schedule next check."""
+    from . import companies
+
+    try:
+        return companies.mark_checked(company_id, req.next_check_in_days)
+    except ValueError as exc:
+        return {"error": str(exc)}
 
 
 # --- Serve the built React app (single-process mode) -------------------------

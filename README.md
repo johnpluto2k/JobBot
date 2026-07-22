@@ -4,6 +4,11 @@ Personal AI-powered career platform. Full roadmap lives in
 [`docs/job_application_system_master_plan.md`](docs/job_application_system_master_plan.md).
 
 **Status: ALL 9 PHASES + ALL 15 RECOMMENDATIONS + CAREER-OPS LAYER + TUNE-UPS COMPLETE ✅**
+*Last updated 2026-07-09: Company-first tracker refactor complete (search pipeline deprecated, manual intake + company table added, applications funnel unchanged).*
+*Previous: Tech v4 resume finalized (cleaned YAML, RenderCV PDF render complete — Pathway + PersonalFinanceOS, 1-page layout).*
+*Previous: 2026-07-08 — LLM defaults moved to `claude-sonnet-5` (judgment calls) + `claude-haiku-4-5` (mechanical calls) in `config.py`/`.env`; the
+globally installed `agent-browser` CLI is now the standard tool for job-board
+browsing/scraping steps (see `CLAUDE.md`).*
 (~60 modules, incl. the three tune-up workstreams from
 [`docs/prompts/tuneups_adjustments.md`](docs/prompts/tuneups_adjustments.md):
 safer scraping, prompt-cached/right-sized LLM calls, RenderCV resume pipeline.)
@@ -29,6 +34,33 @@ exact same Python logic — so every number matches. In single-server mode one
 `uvicorn` process serves both the UI and the API on **port 8000**. It adds an
 LLM **Career Coach** chat grounded in your live pipeline. See
 [Phase 9 — the dashboard](#phase-9--the-dashboard-control-center--front-end).
+
+## Company-first tracker (search → manual intake)
+
+**What changed (2026-07-09):**
+
+The internal job-search engine has been retired. John now:
+1. **Finds jobs manually** on LinkedIn, Indeed, Jobright, Glassdoor, ZipRecruiter, company portals, Handshake, or UMD Smith School portals
+2. **Logs them with a command** (`python -m job_bot.intake <url> <company> <title> --portal linkedin`) or via the API (`POST /api/intake`)
+3. **Tracks companies** in a new `companies` table (career sites, ATS platforms, check-in schedule, target fields, tier)
+
+**What stays the same:**
+- `applications.summary()` is the canonical funnel (offer/rejected/ghosted/interviewing/in_review counts) — identical output before/after
+- The `jobs` table still tracks applications
+- All downstream features (growth plan, offer comparison, coaching) unchanged
+- Legitimacy scoring + JD parser stay for when John pastes a posting
+
+**What moved:**
+- `search_jobs.py`, `jobsearch.py`, `score_job.py`, `jobright.py` → `job_bot/deprecated/` (not imported by default)
+- The `newgrad.run()` search cycle → still works via `deprecated/jobsearch.py` for reference
+
+**New API endpoints:**
+- `POST /api/intake` — log a job manually
+- `GET /api/companies[?due_for_check=true]` — list all companies or only those overdue for a check
+- `PATCH /api/companies/{id}` — mark a company checked today
+
+**New CLI:**
+- `python -m job_bot.intake <url> <company> <title> [--portal <portal>] [--status <status>]`
 
 Phase 1 reads every resume / cover letter / project doc, extracts a structured
 `MasterProfile`, stores it in a local vector DB, and writes `master_profile.json`

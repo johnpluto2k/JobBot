@@ -211,7 +211,7 @@ def scan(keywords: list[str] | None = None, *, companies: list[str] | None = Non
 def scan_and_save(keywords: list[str] | None = None, profile: dict | None = None) -> dict:
     """Scan portals, score/route/legitimacy-check like jobsearch, and persist."""
     from .ats_engine import load_profile
-    from .jobsearch import save_jobs, score_and_route
+    from .deprecated.jobsearch import save_jobs, score_and_route
 
     result = scan(keywords)
     rows = result["rows"]

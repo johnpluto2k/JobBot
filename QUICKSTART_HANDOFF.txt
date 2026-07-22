@@ -1,0 +1,191 @@
+================================================================================
+JOB BOT COMPANY TRACKER — QUICK START FOR NEW SESSION
+================================================================================
+
+STATUS: ✅ COMPLETE & TESTED
+BRANCH: overhaul/resume-and-filter (6 commits)
+LAST UPDATE: 2026-07-10
+
+================================================================================
+WHAT WAS DONE
+================================================================================
+
+Refactored Job Bot from internal job search engine to company-first tracking.
+
+OLD: Bot searched LinkedIn, Indeed, etc. and recommended matches (irrelevant)
+NEW: John searches manually, logs jobs via CLI, bot tracks companies + reminds for check-ins
+
+FILES CHANGED:
+  Backend (Phase 1):  job_bot/companies.py, intake.py, db.py, api.py (+tests)
+  Frontend (Phase 2): web/src/components/CompanyTrackerTab.tsx, App.tsx, api.ts
+  Tests (Phase 3):    test_ui_fixed.py, test_api_direct.py (E2E verified ✅)
+
+DATABASE:
+  companies table created (13 fields)
+  53 companies seeded from historical applications
+  Backup: data/job_bot.db.backup_before_companies
+
+CONSTRAINT VERIFIED:
+  ✅ applications.summary() output unchanged (53 companies, same funnel counts)
+  This is used by coaching skill and must NEVER break.
+
+================================================================================
+HOW TO VERIFY IT WORKS
+================================================================================
+
+Run the E2E test (starts servers, opens browser, tests UI):
+  $ python test_ui_fixed.py
+  Expected: [SUMMARY] UI TEST PASSED
+
+Expected results:
+  ✅ 54 companies in table (53 original + 1 test entry)
+  ✅ Filter buttons (All/Overdue) functional
+  ✅ Check-in buttons clickable
+  ✅ Summary KPI cards rendered
+  ✅ 5 screenshots saved to screenshots/
+
+Run API test only:
+  $ python test_api_direct.py
+  Expected: [PASS] All API endpoints working
+
+================================================================================
+HOW TO RUN NORMALLY
+================================================================================
+
+Terminal 1 (Backend):
+  $ python -m job_bot.api
+  Listens on http://127.0.0.1:8000
+
+Terminal 2 (Frontend):
+  $ cd web && npm run dev
+  Listens on http://localhost:5173
+
+Browser:
+  http://localhost:5173 → Click "Companies" tab
+
+Log a job:
+  $ python -m job_bot.intake "<url>" "<company>" "<title>" --portal linkedin
+  Portals: indeed, linkedin, jobright, glassdoor, ziprecruiter, workday, etc.
+  Statuses: applied, saved, rejected, offer
+
+================================================================================
+KEY FILES
+================================================================================
+
+CORE IMPLEMENTATION:
+  job_bot/companies.py              CRUD module
+  job_bot/intake.py                 Manual intake (CLI + API)
+  job_bot/db.py                     Database schema
+  job_bot/api.py                    API endpoints
+  web/src/components/CompanyTrackerTab.tsx    React UI
+
+TESTS:
+  tests/test_companies.py           CRUD tests
+  tests/test_intake.py              Intake validation
+  test_ui_fixed.py                  E2E browser test (RUN THIS)
+  test_api_direct.py                API test only
+
+DOCS:
+  HANDOFF.md                        Full handoff document (READ THIS)
+  REFACTOR_COMPLETE.md              Architecture details
+  UI_TEST_REPORT.md                 Test results
+  CLAUDE.md                         Project workflow (updated)
+  README.md                         Updated with new flow
+
+DEPRECATED (safe to ignore):
+  job_bot/deprecated/               Old search pipeline (not deleted)
+
+================================================================================
+GIT HISTORY
+================================================================================
+
+Branch: overhaul/resume-and-filter
+Commits (newest first):
+  8728448 Test: End-to-end UI test PASSED
+  f1a3738 Fix: Parse JSON fields in CompanyTrackerTab
+  73d524b Phase 2: Company tracker UI
+  412bf4c Phase 1: Company-first tracker refactor
+  78a9309 Update README: Tech v4 resume finalized
+  26c80fc Phase 2 Tech Track v4: Resume overhaul complete
+
+Run: git log --oneline -10 (to see all commits)
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+IMMEDIATE:
+  1. Run test_ui_fixed.py to verify nothing broke
+  2. Code review of branch (3 commits to review)
+  3. Merge to main if approved
+
+DEPLOYMENT:
+  1. Deploy backend + frontend
+  2. Manual smoke test
+  3. Monitor for regressions
+
+FUTURE WORK (not urgent):
+  - Dashboard exploration (surface new role types)
+  - Job alert management per company
+  - Recruiter tracking
+  - Custom check-in cadence
+
+================================================================================
+KNOWN GOTCHAS
+================================================================================
+
+1. JSON fields in database
+   - portals and target_fields are JSON strings (SQLite limitation)
+   - Frontend has parseJsonField() helper to parse them
+   - ✅ Already handled, no action needed
+
+2. Test entry in database
+   - DB has 54 companies (53 + "Test Corp" from verification)
+   - applications.summary() correctly shows 53 (deduped)
+   - Safe to delete if desired, but no impact
+
+3. Check-in cadence hardcoded
+   - All companies scheduled 7 days out
+   - Can be made per-company later
+   - ✅ Works as MVP
+
+================================================================================
+MEMORY FILES
+================================================================================
+
+Check ~/.claude/projects/C--ClaudeProjects-Job-Bot/memory/:
+  - company-tracker-complete.md    This project status
+  - project-status.md              Overall Job Bot status
+  - user-john-bae.md               User context
+  - explore-mode-request.md        Future UI enhancements
+
+Use /remember to update project status after handoff.
+
+================================================================================
+QUICK CHECKLIST FOR NEW SESSION
+================================================================================
+
+[ ] Read HANDOFF.md (full context)
+[ ] Run test_ui_fixed.py (verify all works)
+[ ] Check git log (all 6 commits present)
+[ ] python -m job_bot.api (backend starts)
+[ ] cd web && npm run dev (frontend starts)
+[ ] Navigate to http://localhost:5173/companies (see table)
+[ ] Review REFACTOR_COMPLETE.md (architecture)
+[ ] Review UI_TEST_REPORT.md (test results)
+
+================================================================================
+CONTACT POINTS IF STUCK
+================================================================================
+
+Questions about architecture?        → Read REFACTOR_COMPLETE.md
+Questions about tests?              → Read UI_TEST_REPORT.md
+Questions about workflow?           → Read CLAUDE.md
+Questions about next steps?         → Read HANDOFF.md "Next Steps"
+Bug in UI?                          → Check test_ui_fixed.py for console errors
+API not responding?                 → Check /api/companies with curl
+
+================================================================================
+STATUS: ✅ PRODUCTION READY
+All tests passing | All docs updated | No blockers | Ready to merge/deploy
+================================================================================

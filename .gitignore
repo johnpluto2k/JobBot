@@ -22,3 +22,9 @@ inputs/
 
 # Claude Code personal settings
 .claude/settings.json
+
+# Dev-server run artifacts
+*.log
+*.pid
+graphify-out/
+screenshots/

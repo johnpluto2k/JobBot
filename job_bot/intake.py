@@ -1,166 +1,161 @@
-"""Personal data intake: import John's own spreadsheets into the system.
+"""Manual job intake — log a job John found and applied to.
 
-Two importers, both reusable (re-run after you update the sheets):
+This is the primary workflow in the company-first tracker model: John finds
+jobs on LinkedIn, Indeed, Jobright, etc., applies manually, then logs them
+here with a company, title, and portal. The bot links it to the companies
+table and tracks the application.
 
-  • import_alumni()  — the PSE alumni workbook  → connections (tagged 'pse')
-  • import_tracker() — the Internship & Job Tracker → jobs + rejections
-
-SECURITY: the job tracker contains a reused password in free-text columns. This
-module hard-excludes those columns (`Details`, `Applicant Portal`, and anything
-whose header mentions password/login/credential) — they are never read into the
-database, an output file, or logs. Only Company / Position / Date / Status are
-imported.
+Use via:
+  - CLI: python -m job_bot.intake <url> <company> <title> [--portal <portal>] [--status <status>]
+  - API: POST /api/intake
+  - Python: from job_bot.intake import log_job; log_job(...)
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import argparse
+from datetime import date
+from typing import Optional
 
-from .connections import import_records
+from . import applications
 from .db import connect
 
-# Columns from the tracker that may hold credentials — never imported.
-SENSITIVE_COLS = {"details", "applicant portal", "portal", "password", "passwords",
-                  "login", "username", "user name", "credentials", "pw"}
 
-# Tracker status -> system job status.
-STATUS_MAP = {
-    "submitted": "applied", "applied": "applied", "in review": "applied",
-    "interview": "interview", "interviewing": "interview", "phone screen": "interview",
-    "assessment": "interview", "offer": "offer", "accepted": "offer",
-    "rejected": "rejected", "declined": "rejected", "withdrawn": "rejected",
-    "ghosted": "rejected",
+# Valid portals (job boards where John searches)
+VALID_PORTALS = {
+    "indeed", "linkedin", "jobright", "glassdoor", "ziprecruiter",
+    "workday", "greenhouse", "handshake", "smith", "email", "other"
 }
 
-
-def _find_header_row(path: Path, sheet: str, markers=("company", "position")) -> int:
-    import pandas as pd
-    raw = pd.read_excel(path, sheet_name=sheet, header=None)
-    for i in range(min(40, len(raw))):
-        low = " | ".join(str(c).strip().lower() for c in raw.iloc[i].tolist() if str(c) != "nan")
-        if sum(m in low for m in markers) >= 2:
-            return i
-    return 0
+# Valid statuses
+VALID_STATUSES = {"applied", "saved", "rejected", "offer"}
 
 
-def import_alumni(path: str | Path, sheet: str = "Alumni",
-                  relationship: str = "pse", replace: bool = True) -> int:
-    """Import the PSE alumni sheet as connections."""
-    import pandas as pd
+def log_job(
+    url: str,
+    company_name: str,
+    title: str,
+    portal: str = "other",
+    status: str = "applied",
+    notes: str | None = None,
+) -> dict:
+    """Log a job John found and applied to manually.
 
-    path = Path(path)
-    df = pd.read_excel(path, sheet_name=sheet)
-    records = df.to_dict("records")
-    if replace:
-        con = connect()
-        con.execute("DELETE FROM connections WHERE source=?", (path.name,))
-        con.commit()
-        con.close()
-    return import_records(records, default_relationship=relationship, source=path.name)
+    Args:
+        url: The job posting URL
+        company_name: Company name (will be normalized)
+        title: Job title
+        portal: Where John found it (indeed, linkedin, jobright, etc.)
+        status: Application status (applied, saved, rejected, offer)
+        notes: Optional notes about the application
 
+    Returns:
+        dict with keys: id, company_id, company_name, job_title, url, status, portal, logged_at
 
-def import_tracker(path: str | Path, sheet: str = "Internship & Job Tracker",
-                   replace: bool = True) -> dict:
-    """Import the job tracker into the jobs table (+ rejections), excluding any
-    credential-bearing columns. Returns counts."""
-    import pandas as pd
+    Raises:
+        ValueError: if inputs are invalid
+    """
+    # Validate inputs
+    if not url or not url.strip():
+        raise ValueError("URL is required")
+    if not company_name or not company_name.strip():
+        raise ValueError("Company name is required")
+    if not title or not title.strip():
+        raise ValueError("Job title is required")
 
-    from .rejections import log_rejection
+    portal_lower = portal.lower() if portal else "other"
+    if portal_lower not in VALID_PORTALS:
+        raise ValueError(f"Invalid portal: {portal}. Must be one of: {', '.join(sorted(VALID_PORTALS))}")
 
-    path = Path(path)
-    hdr = _find_header_row(path, sheet)
-    df = pd.read_excel(path, sheet_name=sheet, header=hdr)
+    status_lower = status.lower() if status else "applied"
+    if status_lower not in VALID_STATUSES:
+        raise ValueError(f"Invalid status: {status}. Must be one of: {', '.join(sorted(VALID_STATUSES))}")
 
-    # Drop sensitive columns up front so they are never in memory beyond this read.
-    safe_cols = [c for c in df.columns if str(c).strip().lower() not in SENSITIVE_COLS]
-    df = df[safe_cols]
-
-    def col(*names):
-        for n in names:
-            for c in df.columns:
-                if str(c).strip().lower() == n:
-                    return c
-        return None
-
-    c_company = col("company")
-    c_pos = col("position", "role", "title")
-    c_date = col("date applied", "date", "applied")
-    c_status = col("application status", "status")
-    c_cold = col("cold apply", "cold")
-    if not c_company:
-        raise SystemExit("Couldn't find a 'Company' column in the tracker.")
+    # Normalize company name
+    company_disp = applications.canon(company_name)
+    if not company_disp or company_disp.lower() in applications._EXCLUDE:
+        raise ValueError(f"Invalid or excluded company: {company_name}")
 
     con = connect()
-    if replace:
-        con.execute("DELETE FROM jobs WHERE site='tracker'")
-        con.execute("DELETE FROM rejections WHERE source='tracker'")
+    try:
+        # Get or create company
+        from . import companies
+
+        company, created = companies.get_or_create(company_disp)
+        company_id = company["id"]
+
+        # Create job entry with company_id and notes
+        today = date.today().isoformat()
+        cur = con.execute("""
+            INSERT INTO jobs
+            (company_id, title, company, url, site, status, date_posted, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (
+            company_id,
+            title.strip(),
+            company_disp,
+            url.strip(),
+            portal_lower,
+            status_lower,
+            today,
+            notes,
+        ))
         con.commit()
+        job_id = cur.lastrowid
 
-    imported = 0
-    pending_rejections: list[tuple[str, str, str | None]] = []
-    last_company = None
-    for _, row in df.iterrows():
-        company = str(row[c_company]).strip() if pd.notna(row[c_company]) else ""
-        if company:
-            last_company = company
-        else:
-            company = last_company  # carry company down merged/blank cells
-        title = (str(row[c_pos]).strip() if c_pos and pd.notna(row[c_pos]) else "")
-        if not company or not title:
-            continue  # skip legend/blank/continuation rows with no role
+        return {
+            "id": job_id,
+            "company_id": company_id,
+            "company_name": company_disp,
+            "job_title": title.strip(),
+            "url": url.strip(),
+            "status": status_lower,
+            "portal": portal_lower,
+            "logged_at": today,
+        }
 
-        status_raw = (str(row[c_status]).strip().lower() if c_status and pd.notna(row[c_status])
-                      else "applied")
-        status = STATUS_MAP.get(status_raw, "applied")
-        date_applied = (str(row[c_date]).split(" ")[0] if c_date and pd.notna(row[c_date]) else None)
-
-        con.execute(
-            "INSERT INTO jobs (title, company, site, status, date_posted, market_tier) "
-            "VALUES (?,?,?,?,?,?)",
-            (title, company, "tracker", status, date_applied, None))
-        imported += 1
-        if status == "rejected":
-            pending_rejections.append((company, title, date_applied))
-
-    con.commit()
-    con.close()  # release the write lock before log_rejection opens its own connection
-
-    for company, title, date_applied in pending_rejections:
-        log_rejection(company, role_title=title, stage="ats_screen",
-                      source="tracker", rejected_on=date_applied)
-    return {"jobs": imported, "rejections_logged": len(pending_rejections)}
+    finally:
+        con.close()
 
 
-def main() -> None:
-    import argparse
-    import sys
+def main():
+    """CLI entry point: python -m job_bot.intake"""
+    parser = argparse.ArgumentParser(
+        description="Log a job you found and applied to"
+    )
+    parser.add_argument("url", help="Job posting URL")
+    parser.add_argument("company", help="Company name")
+    parser.add_argument("title", help="Job title")
+    parser.add_argument(
+        "--portal",
+        default="other",
+        help=f"Job board (default: other). Options: {', '.join(sorted(VALID_PORTALS))}",
+    )
+    parser.add_argument(
+        "--status",
+        default="applied",
+        help=f"Application status (default: applied). Options: {', '.join(sorted(VALID_STATUSES))}",
+    )
+    parser.add_argument("--notes", help="Optional notes")
+
+    args = parser.parse_args()
 
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-    ap = argparse.ArgumentParser(description="Import John's alumni sheet + job tracker "
-                                 "(source files live in inputs/).")
-    ap.add_argument("--alumni", nargs="?", const="inputs/Alumni Spreadsheet.xlsx",
-                    help="Path to the PSE alumni .xlsx (default: inputs/Alumni Spreadsheet.xlsx)")
-    ap.add_argument("--alumni-sheet", default="Alumni")
-    ap.add_argument("--relationship", default="pse")
-    ap.add_argument("--tracker", nargs="?", const="inputs/Internship & Job Tracker.xlsx",
-                    help="Path to the Internship & Job Tracker .xlsx "
-                         "(default: inputs/Internship & Job Tracker.xlsx)")
-    args = ap.parse_args()
-
-    if args.alumni:
-        n = import_alumni(args.alumni, sheet=args.alumni_sheet, relationship=args.relationship)
-        print(f"Imported {n} alumni from {args.alumni} (tagged '{args.relationship}').")
-    if args.tracker:
-        res = import_tracker(args.tracker)
-        print(f"Imported {res['jobs']} applications; logged {res['rejections_logged']} "
-              "rejections. (Details / Applicant Portal columns were excluded — no "
-              "credentials stored.)")
-    if not (args.alumni or args.tracker):
-        ap.print_help()
+        result = log_job(
+            url=args.url,
+            company_name=args.company,
+            title=args.title,
+            portal=args.portal,
+            status=args.status,
+            notes=args.notes,
+        )
+        print(f"Logged: {result['company_name']} - {result['job_title']}")
+        print(f"  URL: {result['url']}")
+        print(f"  Portal: {result['portal']}")
+        print(f"  Status: {result['status']}")
+    except ValueError as e:
+        print(f"Error: {e}", file=__import__("sys").stderr)
+        exit(1)
 
 
 if __name__ == "__main__":

@@ -66,6 +66,55 @@ no evidence, re-run it.
    - If the vault isn't writable for any reason, note that at the top of the
      daily pipeline log and finish normally — never let reporting block the run.
 
+7. **Sync the Obsidian vault** (conductor, right after the Agent HQ report; same
+   rule — if the vault isn't writable, note it in the log and finish normally):
+
+   a. **Daily note — Pipeline section.** Open
+      `C:\ClaudeProjects\ObsidianVault\Daily Notes\<YYYY-MM-DD>.md`. If it
+      doesn't exist, create it from
+      `C:\ClaudeProjects\ObsidianVault\Templates\Daily Note.md` (replace
+      `{{date}}` with today's date). Under the `## Pipeline` heading, replace
+      the placeholder bullet with a condensed digest — bullets only, no data
+      dump:
+      - new high-priority jobs (count + company/title for each),
+      - drafts awaiting John's review,
+      - urgent recruiter email (interview invites / scheduling requests from
+        inbox-triager),
+      - upcoming interviews.
+      If a re-run same day, overwrite the Pipeline section's bullets, not the
+      rest of the note. Leave every other section untouched.
+
+   b. **Rolling funnel snapshot.** Run `python3 coach_snapshot.py .` and
+      **overwrite** (full rewrite, newest data only)
+      `C:\ClaudeProjects\ObsidianVault\2 Areas\Job Search Pipeline Status.md`
+      with this shape:
+
+      ```markdown
+      # Job Search Pipeline Status 🎯
+
+      *Auto-written by Job Bot's daily run — last updated <YYYY-MM-DD>. Don't edit by hand.*
+      Back to [[Job Search]] · today's detail: [[<YYYY-MM-DD>]]
+
+      ## Funnel (canonical, from applications.summary())
+      | Stage | Count |
+      |-------|-------|
+      | In review | <n> |
+      | Interviewing | <n> |
+      | Offers | <n> |
+      | Rejected | <n> |
+      | Ghosted | <n> |
+
+      Response rate: <x>% · Interview rate: <x>%
+
+      ## Time-sensitive
+      - <upcoming interviews, overdue follow-ups, unhandled recruiter email — or "nothing pending">
+
+      ## Focus (from growth plan)
+      - <current focus, one or two bullets>
+
+      #job-search
+      ```
+
 ## How the agents cooperate on a daily run
 
 - job-scout's high-priority finds **feed** resume-tailor (top 3 max).

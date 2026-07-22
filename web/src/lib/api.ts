@@ -331,6 +331,22 @@ export interface CoachSnapshot {
   growth_error?: string
 }
 
+// --- Companies tracker -------------------------------------------------------
+export interface Company {
+  id: number
+  name: string
+  name_normalized?: string
+  career_site_url?: string
+  ats_platform?: string | string[]
+  portals?: string | string[]
+  target_fields?: string | string[]
+  tier?: string
+  notes?: string
+  last_checked?: string
+  next_check_due?: string
+  created_at?: string
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`${path} → ${res.status} ${res.statusText}`)
@@ -388,6 +404,7 @@ export const api = {
     post<Recording>('/api/recording', body),
   coachSnapshot: () => get<CoachSnapshot>('/api/coach/snapshot'),
   coach: (messages: ChatMessage[]) => post<CoachReply>('/api/coach', { messages }),
+  companies: () => get<Company[]>('/api/companies'),
 }
 
 /** Map an application status to a Badge status-tint variant. */

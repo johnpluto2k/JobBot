@@ -1,0 +1,24 @@
+# Seniority classification eval set
+# Each line is JSON: { "title": "...", "expected_level": "entry|mid|senior|lead|exec", "reason": "..." }
+# These are real or realistic postings for evaluating seniority.classify()
+
+{"title": "Staff Accountant", "years_in_jd": "3-5", "expected_level": "entry", "reason": "Despite 'Staff' title, entry-level role at regional firms; typically post-graduate hire"}
+{"title": "Analyst III", "years_in_jd": "5-8", "expected_level": "senior", "reason": "III suffix = 3rd level; typically 5+ YoE; senior contributor, not IC1"}
+{"title": "Associate Director", "years_in_jd": "8-12", "expected_level": "lead", "reason": "'Associate' is misleading; Director-track = lead despite prefix; management/mentoring expected"}
+{"title": "Data Analyst (Entry-Level)", "years_in_jd": "0-2", "expected_level": "entry", "reason": "Explicit 'Entry-Level' in title; fresh grad or career switcher"}
+{"title": "Senior Data Engineer", "years_in_jd": "7-10", "expected_level": "senior", "reason": "'Senior' prefix unambiguous; 7+ YoE expected; architect/leadership responsibility"}
+{"title": "Compliance Analyst", "years_in_jd": "1-3", "expected_level": "entry", "reason": "No level modifier; combined with low YoE = entry analyst role"}
+{"title": "IT Audit Manager", "years_in_jd": "8-15", "expected_level": "lead", "reason": "'Manager' title = lead; supervises team or process"}
+{"title": "Performance & Data Analyst (Administrator II)", "years_in_jd": "5-8", "expected_level": "mid", "reason": "II suffix = 2nd level; admin/professional work; mid-career analyst"}
+{"title": "Lead Software Engineer", "years_in_jd": "10-15", "expected_level": "lead", "reason": "'Lead' = leadership track; 10+ YoE; tech lead/IC4+"}
+{"title": "Executive Director of Finance", "years_in_jd": "15+", "expected_level": "exec", "reason": "'Executive Director' = C-suite equivalent; 15+ YoE; strategic decision-making"}
+{"title": "QA Analyst", "years_in_jd": "2-4", "expected_level": "entry", "reason": "Generic 'Analyst' with no seniority modifier; entry to early-mid"}
+{"title": "Principal Architect", "years_in_jd": "12-20", "expected_level": "exec", "reason": "'Principal' = most senior IC track before management; strategic design role"}
+{"title": "Internship - Software Development", "years_in_jd": "0", "expected_level": "entry", "reason": "Internship = sub-entry; recent student or new grad"}
+{"title": "Systems Administrator II", "years_in_jd": "4-6", "expected_level": "mid", "reason": "II suffix; 4-6 YoE typical; mid-level operational responsibility"}
+{"title": "Financial Analyst", "years_in_jd": "2-5", "expected_level": "entry", "reason": "No modifier; entry to early-mid analyst role"}
+{"title": "Vice President of Operations", "years_in_jd": "12-20", "expected_level": "exec", "reason": "'Vice President' = C-suite; strategic leadership and board-level responsibility"}
+{"title": "Consultant", "years_in_jd": "3-8", "expected_level": "mid", "reason": "Management consulting 'Consultant' (pre-Manager) = mid-level; 3-8 YoE typical"}
+{"title": "Director of Engineering", "years_in_jd": "10-15", "expected_level": "lead", "reason": "'Director' = lead/management; engineering team oversight; 10+ YoE"}
+{"title": "Junior Developer", "years_in_jd": "0-2", "expected_level": "entry", "reason": "'Junior' prefix unambiguous; entry-level IC; typically post-bootcamp or fresh grad"}
+{"title": "Senior Manager, Product", "years_in_jd": "8-15", "expected_level": "lead", "reason": "'Senior Manager' = lead track; multi-team responsibility; strategic product work"}

@@ -12,6 +12,8 @@ NOTE: the playbook lists "Leveraged" as a preferred verb, but it's on the
 banned-cliché list; the ban wins, so it's deliberately absent below.
 """
 
+from __future__ import annotations
+
 import re
 
 BANNED_PHRASES = [

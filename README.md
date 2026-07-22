@@ -32,8 +32,42 @@ UI is now a modern **React dashboard** (`web/`, Vite + Tailwind + shadcn-style
 components) served by a thin **FastAPI** layer (`job_bot/api.py`) that reuses the
 exact same Python logic — so every number matches. In single-server mode one
 `uvicorn` process serves both the UI and the API on **port 8000**. It adds an
-LLM **Career Coach** chat grounded in your live pipeline. See
+LLM **Career Coach** chat grounded in your live pipeline, is gated behind
+**Sign in with Google**, and keeps the tracker fresh with an **autonomous Gmail
+sync** every 15 minutes. See
 [Phase 9 — the dashboard](#phase-9--the-dashboard-control-center--front-end).
+
+## 🔐 Google sign-in + autonomous Gmail sync (2026-07-13)
+
+The React dashboard is now a signed-in app, and recruiter email flows into the
+tracker on its own:
+
+- **Sign in with Google** (`job_bot/google_auth.py`) — a hand-rolled OAuth
+  authorization-code flow (scopes: `openid`, `email`, `profile`,
+  `gmail.readonly` — read-only; the app never sends or modifies mail).
+  `/auth/login` sends the browser to Google; the callback stores the refresh
+  token in `data/google_token.json` (gitignored) and mints a single-user
+  session cookie. Everything under `/api/*` (except `health` / `auth/status`)
+  requires that cookie — the web app shows a `SignInScreen` until you're in,
+  and a sign-out button after.
+- **Autonomous Gmail sync** (`job_bot/gmail_client.py`) — pulls recent
+  job-related threads via the Gmail API and feeds them through the existing
+  `gmail_sync` classification pipeline (deduped status updates: interviews,
+  rejections, offers, recruiter outreach). Runs automatically **every 15
+  minutes** (APScheduler, one-sync-at-a-time lock) while the server is up,
+  plus immediately after sign-in; a **SyncIndicator** chip in the dashboard
+  header shows last sync / new items and offers a manual "sync now"
+  (`POST /api/sync-now`).
+- **Setup (one time):** create an OAuth 2.0 *Web application* client in Google
+  Cloud Console with `http://localhost:8000/auth/callback` as an authorized
+  redirect URI, enable the Gmail API, then set `GOOGLE_CLIENT_ID` /
+  `GOOGLE_CLIENT_SECRET` (and optionally `GOOGLE_REDIRECT_URI`) in `.env` —
+  see `.env.example`. Optional tuning: `GMAIL_SYNC_DAYS`,
+  `GMAIL_SYNC_MAX_THREADS`, `GMAIL_SYNC_QUERY`.
+- **No secrets in git:** client id/secret live in `.env` (gitignored);
+  tokens, session, and sync status live under `data/` (gitignored).
+- **Tests:** `python -m tests.test_gmail_client` — offline transform-boundary
+  tests, no network needed.
 
 ## Company-first tracker (search → manual intake)
 
@@ -84,6 +118,8 @@ pip install -r requirements.txt
 python -m job_bot.build_profile
 
 # 4a. open the React dashboard (recommended) — one server serves UI + API
+#     (set GOOGLE_CLIENT_ID/SECRET in .env first — the dashboard is behind
+#      Sign in with Google; see the section above)
 cd web && npm install && npm run build && cd ..   # first time only (builds web/dist)
 uvicorn job_bot.api:app --port 8000               # → http://localhost:8000
 
@@ -119,7 +155,10 @@ Job Bot/
 │   └── backups/              # timestamped DB backups
 ├── documents/        # your resumes / cover letters / transcripts / avatar — gitignored
 ├── docs/             # project docs: master plan, resume_branding_playbook.md
-│   └── prompts/      #   one-off Claude Code prompt specs (see docs/prompts/README.md)
+│   ├── prompts/      #   one-off Claude Code prompt specs (see docs/prompts/README.md)
+│   └── archive/      #   historical setup docs (e.g. the multi-agent pipeline spec)
+├── daily_pipeline_prompt.md   # the unattended daily-pipeline prompt (run by
+│                              #   run-job-bot-pipeline.cmd — keep at repo root)
 ├── README.md  ·  requirements.txt
 ```
 
@@ -334,13 +373,17 @@ uvicorn job_bot.api:app --reload --port 8000   # terminal 1 — API
 cd web && npm run dev                           # terminal 2 — UI on :5173
 ```
 
-**13 pages behind a grouped sidebar** (collapses to a drawer on narrow
-viewports; the active page persists via `localStorage`):
+**14 pages behind a grouped sidebar** (collapses to a drawer on narrow
+viewports; the active page persists via `localStorage`). The app is gated
+behind **Sign in with Google** and shows a live Gmail **sync indicator** in the
+header (see the
+[Google sign-in section](#-google-sign-in--autonomous-gmail-sync-2026-07-13)):
 
 - **Overview** — Overview (KPIs + funnel + field mix + profile), **Coach**
   (LLM career chat grounded in your live pipeline)
-- **Pipeline** — Applications, Pipeline, Find Jobs (job-board picker seeded
-  from `/api/cycles` `default_sites`, results-per-role slider 5–50)
+- **Pipeline** — Applications, Pipeline, **Companies** (the company-first
+  tracker — manual intake + overdue check-ins), Find Jobs (job-board picker
+  seeded from `/api/cycles` `default_sites`, results-per-role slider 5–50)
 - **Build** — **Resume Studio** (edit the RenderCV YAML as text, typeset to a
   Typst PDF, download `.pdf`/`.yaml`/`.typ` or the classic `.docx`),
   Score a JD, LinkedIn
@@ -460,6 +503,8 @@ job_bot/
   ui.py              dashboard design system (components, theme)
   api.py             FastAPI JSON layer for the React dashboard (also serves web/dist)
   coach.py           Career Coach — live-pipeline snapshot + grounded LLM chat
+  google_auth.py     Google OAuth (openid/email/profile/gmail.readonly) + session cookie
+  gmail_client.py    Gmail API fetch -> gmail_sync pipeline; 15-min background sync
 
   intake.py          import personal spreadsheets (alumni workbook, job tracker)
   gmail_sync.py      Gmail MCP threads -> classified, deduped pipeline updates
@@ -688,8 +733,10 @@ python -m tests.test_pipeline      # plain script, no pytest needed
 python -m pytest tests/            # also pytest-compatible
 ```
 
-Still pending: re-auth the Gmail / Google Calendar MCPs so inbox triage and the
-prep planner run live instead of on demo data.
+Gmail now runs live without any MCP: the built-in Google sign-in + 15-minute
+background sync (see the [Google sign-in section](#-google-sign-in--autonomous-gmail-sync-2026-07-13))
+feeds inbox triage real recruiter email. Still pending: wire Google Calendar
+(MCP or API) so the prep planner can create events directly instead of via `.ics`.
 
 ## Graceful degradation
 

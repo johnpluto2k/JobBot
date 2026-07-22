@@ -19,17 +19,48 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import mimetypes
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import applications, config
+from . import applications, config, gmail_client, google_auth
 from .db import DB_PATH, connect
 
-app = FastAPI(title="Job Bot API", version="1.0.0")
+log = logging.getLogger("job_bot.api")
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Run the Gmail sync every 15 minutes for as long as the app is up.
+
+    The job itself is a no-op until a Google login has stored a refresh token,
+    so the scheduler can start unconditionally.
+    """
+    scheduler = None
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+
+        scheduler = BackgroundScheduler(daemon=True)
+        scheduler.add_job(
+            gmail_client.run_sync_if_logged_in, "interval", minutes=15,
+            id="gmail_sync", coalesce=True, max_instances=1,
+        )
+        scheduler.start()
+    except ImportError:
+        log.warning("APScheduler not installed — background Gmail sync disabled "
+                    "(pip install apscheduler)")
+    yield
+    if scheduler:
+        scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Job Bot API", version="1.0.0", lifespan=_lifespan)
 
 # The Vite dev server origins. Loosened here for local dev; tighten for deploy.
 app.add_middleware(
@@ -41,6 +72,114 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
+
+
+# --- Google login + session gate ---------------------------------------------
+# Single-user local auth: /auth/login sends the browser to Google, the callback
+# stores the refresh token (for Gmail sync) and mints the session cookie the
+# React app rides on. Everything under /api/* except the probes below requires
+# that cookie.
+
+_OPEN_API_PATHS = {"/api/health", "/api/auth/status"}
+
+
+@app.middleware("http")
+async def _require_session(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/") and path not in _OPEN_API_PATHS:
+        if not google_auth.session_valid(request.cookies.get(google_auth.SESSION_COOKIE)):
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+    try:
+        return await call_next(request)
+    except SystemExit as exc:
+        # Some CLI-first helpers (ats_engine.load_profile) raise SystemExit on
+        # missing inputs; in a server that must be a 500, not process death.
+        return JSONResponse({"detail": str(exc)}, status_code=500)
+
+
+@app.get("/auth/login")
+def auth_login(next: str = "/"):
+    """Kick off the Google OAuth consent flow."""
+    if not google_auth.configured():
+        return JSONResponse(
+            {"detail": "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET missing from .env"},
+            status_code=500,
+        )
+    return RedirectResponse(google_auth.build_auth_url(next_url=next))
+
+
+@app.get("/auth/callback")
+def auth_callback(code: str | None = None, state: str | None = None,
+                  error: str | None = None):
+    """Google redirects here; exchange the code, set the session, go home."""
+    if error:
+        return JSONResponse({"detail": f"Google returned: {error}"}, status_code=400)
+    next_url = google_auth.pop_state(state or "")
+    if next_url is None:
+        return JSONResponse({"detail": "Invalid or expired OAuth state — retry "
+                                       "from /auth/login"}, status_code=400)
+    if not code:
+        return JSONResponse({"detail": "Missing authorization code"}, status_code=400)
+    try:
+        claims = google_auth.exchange_code(code)
+    except RuntimeError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=502)
+    token = google_auth.create_session(claims.get("email"))
+    resp = RedirectResponse(next_url)
+    # Not `secure`: this app is plain-http localhost by design.
+    resp.set_cookie(google_auth.SESSION_COOKIE, token, httponly=True,
+                    samesite="lax", max_age=google_auth.SESSION_MAX_AGE)
+    # First sync right away so the dashboard isn't empty for 15 minutes.
+    import threading
+
+    threading.Thread(target=gmail_client.run_sync_if_logged_in, daemon=True).start()
+    return resp
+
+
+@app.get("/api/auth/status")
+def auth_status(request: Request) -> dict:
+    """Open probe the React app uses to decide login screen vs dashboard."""
+    logged_in = google_auth.session_valid(
+        request.cookies.get(google_auth.SESSION_COOKIE))
+    return {
+        "logged_in": logged_in,
+        "email": google_auth.google_email() if logged_in else None,
+        "configured": google_auth.configured(),
+    }
+
+
+@app.post("/api/auth/logout")
+def auth_logout():
+    """Drop the dashboard session (keeps the Gmail refresh token so background
+    sync keeps working; log in again to get back in)."""
+    google_auth.destroy_session()
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(google_auth.SESSION_COOKIE)
+    return resp
+
+
+# --- Gmail sync ----------------------------------------------------------------
+
+@app.get("/api/sync-status")
+def sync_status() -> dict:
+    """Last sync time/result for the dashboard's sync indicator."""
+    status = gmail_client.load_status()
+    status["running"] = gmail_client.sync_running()
+    status["gmail_connected"] = google_auth.token_record() is not None
+    status["interval_minutes"] = 15
+    return status
+
+
+@app.post("/api/sync-now")
+def sync_now() -> dict:
+    """Run a Gmail sync immediately (same code path as the 15-minute job)."""
+    if not google_auth.token_record():
+        return JSONResponse({"detail": "Gmail not connected — sign in first"},
+                            status_code=409)
+    status = gmail_client.run_sync()
+    status["running"] = False
+    status["gmail_connected"] = True
+    return status
 
 
 def _avatar_data_uri() -> str | None:
@@ -464,6 +603,9 @@ def studio_render(req: StudioRenderRequest) -> dict:
 def studio_docx(source: str = PROFILE_SOURCE) -> dict:
     """The classic .docx render (base64) — generate.py's python-docx path,
     kept as a renderer choice alongside the Typst PDF."""
+    if not config.PROFILE_JSON.exists():
+        return {"error": "no data/master_profile.json — run "
+                         "python -m job_bot.build_profile first"}
     from .tailor import resume_basename
     try:
         if source == PROFILE_SOURCE:

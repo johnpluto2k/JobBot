@@ -52,4 +52,7 @@ rendercv[full]>=2.0
 # spacy>=3.7
 # scikit-learn>=1.4
 
+# --- Tests (tests/test_companies.py, test_intake.py, test_seniority_eval.py) ---
+pytest>=8.0
+
 # sqlite3 is part of the Python standard library — no install needed.

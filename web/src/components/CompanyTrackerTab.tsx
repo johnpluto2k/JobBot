@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -240,11 +240,9 @@ export function CompanyTrackerTab() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               {isOverdue && (
-                                <AlertCircle
-                                  size={14}
-                                  className="text-orange-600"
-                                  title="Due for check-in"
-                                />
+                                <span title="Due for check-in">
+                                  <AlertCircle size={14} className="text-orange-600" />
+                                </span>
                               )}
                               <span className={isOverdue ? 'font-semibold text-orange-600' : 'text-xs text-muted-foreground'}>
                                 {company.next_check_due

@@ -4,16 +4,17 @@ Personal AI-powered career platform. Full roadmap lives in
 [`docs/job_application_system_master_plan.md`](docs/job_application_system_master_plan.md).
 
 **Status: ALL 9 PHASES + ALL 15 RECOMMENDATIONS + CAREER-OPS LAYER + TUNE-UPS COMPLETE ✅**
-*Last updated 2026-07-09: Company-first tracker refactor complete (search pipeline deprecated, manual intake + company table added, applications funnel unchanged).*
-*Previous: Tech v4 resume finalized (cleaned YAML, RenderCV PDF render complete — Pathway + PersonalFinanceOS, 1-page layout).*
-*Previous: 2026-07-08 — LLM defaults moved to `claude-sonnet-5` (judgment calls) + `claude-haiku-4-5` (mechanical calls) in `config.py`/`.env`; the
-globally installed `agent-browser` CLI is now the standard tool for job-board
-browsing/scraping steps (see `CLAUDE.md`).*
-(~60 modules, incl. the three tune-up workstreams from
+*Last updated 2026-07-22: reconciled four long-diverged branches into `main` —
+Google sign-in + autonomous Gmail sync (07-13), the company-first tracker
+refactor + Tech v4 résumé (07-09/07-10), and the sidebar-nav frontend redesign
+(07-16) had each been built independently and never merged. See
+[What's next](#whats-next) for the follow-up work that surfaced doing that
+(a company-name-normalization bug in the tracker, a couple of docs/test gaps).*
+(~65 modules, incl. the three tune-up workstreams from
 [`docs/prompts/tuneups_adjustments.md`](docs/prompts/tuneups_adjustments.md):
 safer scraping, prompt-cached/right-sized LLM calls, RenderCV resume pipeline.)
 Knowledge base · reverse ATS scorer · network-vs-cold-apply · tailored
-resume/cover-letter generator · job search + routing · networking/outreach ·
+resume/cover-letter generator · company-first tracker · networking/outreach ·
 interview prep + mock · application autofill · 13-tab Streamlit control center
 (incl. an **Applications tracker** — one deduped, field-classified row per
 position applied — and an automated **Growth Plan** of certs/projects/résumé
@@ -85,8 +86,11 @@ The internal job-search engine has been retired. John now:
 - Legitimacy scoring + JD parser stay for when John pastes a posting
 
 **What moved:**
-- `search_jobs.py`, `jobsearch.py`, `score_job.py`, `jobright.py` → `job_bot/deprecated/` (not imported by default)
-- The `newgrad.run()` search cycle → still works via `deprecated/jobsearch.py` for reference
+- `search_jobs.py`, `score_job.py`, `jobright.py` (the standalone auto-recommend
+  CLIs) → `job_bot/deprecated/`, not imported anywhere
+- `jobsearch.py` also moved there, but its JobSpy scrape functions are still
+  **actively imported** by `newgrad.py` — the Find Jobs page still works, it
+  just no longer auto-recommends or auto-applies
 
 **New API endpoints:**
 - `POST /api/intake` — log a job manually
@@ -162,11 +166,13 @@ Job Bot/
 ├── README.md  ·  requirements.txt
 ```
 
-Import your source files (defaults point at `inputs/`):
-
-```bash
-python -m job_bot.intake --alumni --tracker      # uses the inputs/ defaults
-```
+> **Known gap:** `intake.py` used to import `inputs/` spreadsheets
+> (`--alumni --tracker`); as of the 2026-07-09 company-first refactor it was
+> repurposed for manual per-job logging (below) and those flags no longer
+> exist. The one-time migration that seeded the `companies` table from
+> historical data reads the existing `jobs` table (`migrate_companies.py`),
+> not the raw spreadsheets — so there's currently no CLI path to (re-)import
+> an updated Alumni/Tracker spreadsheet. See [What's next](#whats-next).
 
 ## Better extraction (optional)
 
@@ -250,55 +256,47 @@ see Tune-ups below). `--renderer rendercv` swaps the PDF pipeline for RenderCV:
 a git-diffable `resume.yaml` (Overleaf-compatible) typeset with an ATS-safe
 single-column theme.
 
-## Phase 5 — search + route job boards
+## Phase 5 — company-first tracker (manual intake, not internal search)
+
+**As of 2026-07-09 the internal auto-recommend/scoring engine is retired**
+(`search_jobs.py`, `score_job.py`, `jobright.py` moved to
+`job_bot/deprecated/` — reference/rollback only, not imported). It was
+surfacing irrelevant "top matches" (Clinical Medical Physics, Police Aide).
+Note `jobsearch.py`'s raw JobSpy scraping functions are also under
+`deprecated/` but are **still imported live** by `newgrad.py`, which powers
+the dashboard's **Find Jobs** page (board search by cycle/track) — so
+browsing/scraping itself didn't go away, only the auto-recommendation layer on
+top of it. Find Jobs results don't yet write into the tracker automatically
+(see [What's next](#whats-next)); John finds jobs on LinkedIn, Indeed,
+Jobright, Glassdoor, ZipRecruiter, company portals, Handshake, UMD Smith
+School portals, or the dashboard's Find Jobs page, then logs them himself:
 
 ```bash
-python -m job_bot.search_jobs --term "IT audit" --location "Washington, DC" --results 15
-python -m job_bot.search_jobs --term "data analyst" --remote --linkedin   # add LinkedIn (opt-in)
-python -m job_bot.search_jobs --term "IT audit" --force    # bypass the 1-hour re-scrape guard
-python -m job_bot.search_jobs --list      # stored jobs ranked by priority
+python -m job_bot.intake "<url>" "<company>" "<title>" --portal linkedin
+python -m job_bot.intake "<url>" "<company>" "<title>" --portal indeed --status applied
 ```
 
-Scrapes via JobSpy — **Indeed by default** (the reliable source); LinkedIn,
-Glassdoor, Google, and ZipRecruiter are opt-in via `--linkedin` / `--sites`.
-Tags each posting by market tier, scores it against your profile, and ranks by
-priority into the `jobs` table. Scraping is deliberately gentle: one site at a
-time with a delay in between, one backoff retry on rate limits, and a
-`scrape_log` that skips identical searches re-run within an hour.
+Portals: `indeed`, `linkedin`, `jobright`, `glassdoor`, `ziprecruiter`,
+`workday`, `greenhouse`, `handshake`, `smith`, `email`, `other` (default).
+Statuses: `applied`, `saved`, `rejected`, `offer` (default: `applied`).
 
-### jobright.ai — your AI-matched recommendations (`job_bot/jobright.py`)
+This links the job to a `companies` table (career site, ATS platform, tier,
+target fields) and schedules a 7-day check-in reminder. `applications.summary()`
+— the canonical funnel used everywhere, incl. coaching — is unchanged.
 
-Pulls your personalized jobright.ai matches into the **same** `jobs` table —
-scored, routed, and legitimacy-checked exactly like the JobSpy and portal
-sources. jobright is login-walled and personalized, so this reads *your*
-authenticated session; it never handles your password.
-
-Two auth paths (Playwright is the default and lower ban-risk — a real browser
-session looks like you, vs raw HTTP which has a bot-like fingerprint):
-
-```bash
-# 1. Playwright (recommended). ONE-TIME login — must be run from YOUR OWN terminal
-#    (a browser window can't be launched onto your desktop for you):
-python -m job_bot.jobright --login      # opens a browser; log in; it auto-saves the session
-python -m job_bot.jobright --save       # then pull anytime, headless, into the pipeline
-python -m job_bot.jobright --preview    # fetch + print without saving
-python -m job_bot.jobright --show       # run the pull with a visible browser (debug)
-
-# 2. Cookie (lighter, but the cookie expires + is more detectable). Export your
-#    jobright session cookie into .env as JOBRIGHT_COOKIE='...' then:
-python -m job_bot.jobright --save --method cookie
+```python
+from job_bot import companies
+companies.list_all()          # all tracked companies
+companies.due_for_check()     # overdue for a check-in
 ```
 
-**ToS note:** jobright's terms likely restrict automated access — this is built
-for personal, low-volume use of your own account (same posture as the rest of
-the scraping here). Keep it gentle.
+Also live in the dashboard's **Companies** page (table + filters + a
+"Check" button that marks a company reviewed and reschedules), and via the API:
+`POST /api/intake`, `GET /api/companies[?due_for_check=true]`,
+`PATCH /api/companies/{id}`.
 
-> **Status / pick up here (2026-07-05):** the module is built and 12 matches were
-> already imported via a one-time DOM grab from a logged-in tab (a stopgap; the
-> card markup is hashed so it's not durable). The **durable path still needs the
-> one-time `--login` above, run from your terminal** — after that, `--save` works
-> headless. A `site='jobright'` filter in the dashboard Pipeline tab is a nice
-> next step.
+Legitimacy scoring (below) and the JD parser still run whenever John pastes a
+posting — only the *discovery* engine was retired, not the scoring logic.
 
 ## Phase 6 — networking + outreach
 
@@ -482,9 +480,16 @@ job_bot/
   generate.py        Phase 4 CLI
 
   routing.py         market-tier + platform routing + priority score
-  jobsearch.py       JobSpy wrapper + score/route
-  search_jobs.py     Phase 5 CLI
-  jobright.py        jobright.ai AI-matched jobs -> pipeline (Playwright/cookie)
+  newgrad.py         entry-level multi-board search sweep (newgrad-jobs style)
+  seniority.py       role-level detection; filters senior+ roles out of the pipeline
+  qualifications.py  detect/penalize hard cert-or-degree gaps against a JD
+
+  companies.py       company-first tracker CRUD (career site, ATS, check-in cadence, tier)
+  intake.py          manual job intake -> companies + jobs tables (the primary Phase 5 flow now)
+  migrate_companies.py  one-time seed of the companies table from historical applications
+  deprecated/        retired auto-recommend engine (search_jobs.py, score_job.py, jobright.py —
+                     reference/rollback only); jobsearch.py's JobSpy scrape fns are still
+                     imported live by newgrad.py (powers the Find Jobs page)
 
   outreach.py        personalized message drafting
   networking.py      contact lookup + cadence scheduling
@@ -506,12 +511,9 @@ job_bot/
   google_auth.py     Google OAuth (openid/email/profile/gmail.readonly) + session cookie
   gmail_client.py    Gmail API fetch -> gmail_sync pipeline; 15-min background sync
 
-  intake.py          import personal spreadsheets (alumni workbook, job tracker)
   gmail_sync.py      Gmail MCP threads -> classified, deduped pipeline updates
   applications.py    canonical deduped application tracker (source of truth)
   growth.py          automated growth plan (certs / projects / resume variants)
-  newgrad.py         entry-level multi-board search sweep (newgrad-jobs style)
-  seniority.py       role-level detection; filters senior+ roles out of the pipeline
 
   legitimacy.py      ghost-job / scam check + Playwright liveness verify
   portals.py         direct career-portal scan (Greenhouse/Lever feeds)
@@ -694,7 +696,9 @@ the cost-of-living-to-pay conversion, since pay tracks COL only partially.)
 
 The three workstreams from
 [`docs/prompts/tuneups_adjustments.md`](docs/prompts/tuneups_adjustments.md) are
-**done**:
+**done** (note: `jobsearch.py`/`search_jobs.py` have since moved to
+`job_bot/deprecated/` — see [Phase 5](#phase-5--company-first-tracker-manual-intake-not-internal-search)
+— but the same safety patterns apply if that engine is ever re-enabled):
 
 1. **Safer scraping** (`jobsearch.py` / `search_jobs.py`) — `--sites` defaults
    to **Indeed only** (add `--linkedin` to opt in); sites are scraped one at a
@@ -754,3 +758,53 @@ Everything runs on a fresh clone:
 
 See [`docs/job_application_system_master_plan.md`](docs/job_application_system_master_plan.md)
 for the full build log and Python 3.14 environment notes.
+
+## What's next
+
+`main` was just reconciled from four branches that had diverged since
+2026-07-08 and never merged (`resume-adjuster`, `oogle-login-gmail-sync`,
+`overhaul/resume-and-filter`, plus `main`'s own two small fixes) — each had
+been developed in an isolated worktree with no one merging back. Verifying
+that merge (`npm run build`, `pytest`, an in-process API boot) surfaced real
+gaps that no session had caught yet:
+
+1. **Company-name normalization bug** (`job_bot/companies.py` /
+   `applications.canon()`) — "KPMG USA" and "kpmg" don't resolve to the same
+   company, so the same employer can end up as two tracker rows. 3 tests fail
+   on this today: `test_get_or_create_name_normalization`,
+   `test_log_job_appears_in_applications`, `test_log_job_name_normalization`
+   (`python -m pytest tests/test_companies.py tests/test_intake.py`). Needs a
+   design call on how aggressive the canonicalization should be (strip
+   `USA`/`Inc`/`LLC`? case-fold only?) before fixing — touches the
+   `applications.summary()` invariant, so re-verify that after.
+2. **`qualifications.py` is built but never wired in** — no call site anywhere
+   in the codebase, no test. Decide whether it plugs into `routing.recommend`
+   (the apply gate) or `ats_engine`, then wire it and add coverage.
+3. **Find Jobs → tracker handoff is manual** — the Find Jobs page still runs
+   a live JobSpy scrape (via `newgrad.py`), but nothing carries a result into
+   `intake.log_job()`; John has to re-type the URL/company/title into the
+   Companies page or CLI. A "log this job" button on each Find Jobs result
+   card would close the loop.
+4. **Spreadsheet re-import path is gone** — `intake.py --alumni --tracker`
+   (importing `inputs/Alumni Spreadsheet.xlsx` / `inputs/Internship & Job
+   Tracker.xlsx`) was removed when `intake.py` was repurposed for manual
+   per-job logging; only a one-time `jobs`-table migration
+   (`migrate_companies.py`) exists now. If John gets an updated tracker
+   spreadsheet there's currently no documented way to bring it in.
+5. **Decide on pushing.** All four branches are merged locally into `main`
+   only — nothing has been pushed to `origin`, and the stale branches
+   (`resume-adjuster`, `oogle-login-gmail-sync`, `overhaul/resume-and-filter`)
+   still exist locally and on `origin`. Once you're happy with `main`, decide
+   whether to push and whether to delete the merged branches (local + remote)
+   to stop this kind of silent divergence from recurring — worth also
+   agreeing on a habit (a standing branch check, or just merging back sooner)
+   so four months of independent work doesn't stack up unmerged again.
+6. **`docs/job_application_system_master_plan.md`** changed substantially on
+   `overhaul/resume-and-filter` (480 lines) and hasn't had a fresh read since
+   the merge — worth a skim for anything that still describes the retired
+   auto-recommend engine as current.
+7. Carried over from before this merge (still open): explore-mode for the
+   dashboard (surface adjacent/new role types, not just IT-audit-shaped
+   results — see prior memory `explore-mode-request`), optional per-company
+   alert cadence/keyword filters, and wiring Google Calendar directly into the
+   prep planner instead of the `.ics` fallback.

@@ -54,5 +54,6 @@ rendercv[full]>=2.0
 
 # --- Tests (tests/test_companies.py, test_intake.py, test_seniority_eval.py) ---
 pytest>=8.0
+httpx>=0.27  # required by fastapi.testclient.TestClient (tests/test_api_tailor.py)
 
 # sqlite3 is part of the Python standard library — no install needed.

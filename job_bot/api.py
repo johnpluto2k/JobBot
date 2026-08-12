@@ -414,6 +414,130 @@ def score_jd(req: ScoreRequest) -> dict:
     }
 
 
+def _tailor_prose(job) -> str:
+    """Short 2-3 sentence LLM summary of the parsed JD for the job-summary box.
+    Uses only the parsed JobPosting fields — never invents facts."""
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    facts = (
+        f"Title: {job.title or 'unknown'}\n"
+        f"Company: {job.company or 'unknown'}\n"
+        f"Location: {job.location or 'unknown'}\n"
+        f"Role type: {job.role_type or 'unknown'}\n"
+        f"Seniority: {job.seniority or 'unknown'}\n"
+        f"Remote: {job.remote}\n"
+        f"Required keywords: {', '.join(job.required_keywords) or 'none'}\n"
+        f"Preferred keywords: {', '.join(job.preferred_keywords) or 'none'}\n"
+    )
+    prompt = (
+        "Write a tight 2-3 sentence summary of this role for John Bae, a job "
+        "seeker deciding whether/how to tailor his resume to it. Use ONLY the "
+        "facts given below; do not invent anything.\n\n" + facts
+    )
+    msg = client.messages.create(model=config.ANTHROPIC_MODEL, max_tokens=200,
+                                 messages=[{"role": "user", "content": prompt}])
+    return "".join(b.text for b in msg.content if b.type == "text").strip()
+
+
+@app.post("/api/tailor")
+def tailor_jd(req: ScoreRequest) -> dict:
+    """Parse a JD once, tailor a one-page resume against it, and return the
+    job summary + RenderCV YAML (JSON, which is valid YAML). Mirrors the
+    `score_jd` parse step; does NOT typeset a PDF here — the frontend sends
+    the returned `yaml` to `/api/resume-studio/render` for that.
+    """
+    from .applications import classify_field
+    from .ats_engine import load_profile
+    from .jd_parser import parse_jd
+    from .render_rendercv import resume_to_rendercv_dict
+    from .tailor import tailor_resume
+    from .template_select import renderer_for_field
+
+    try:
+        job = parse_jd(req.jd, url=req.url or None, use_llm=config.has_llm())
+        if req.company:
+            job.company = req.company
+
+        try:
+            profile = load_profile(None)
+        except SystemExit as exc:  # master_profile.json missing
+            return {"error": str(exc)}
+
+        summary = {
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "role_type": job.role_type,
+            "seniority": job.seniority,
+            "market_tier": job.market_tier,
+            "remote": job.remote,
+            "ats_platform": job.ats_platform,
+            "gpa_cutoff": job.gpa_cutoff,
+            "years_experience": job.years_experience,
+            "required_keywords": job.required_keywords,
+            "preferred_keywords": job.preferred_keywords,
+            "prose": None,
+        }
+        if config.has_llm():
+            try:
+                summary["prose"] = _tailor_prose(job)
+            except Exception as exc:  # degrade gracefully, never fail the request
+                print(f"  ! LLM job summary failed ({exc}); skipping prose")
+
+        resume = tailor_resume(profile, job, use_llm=config.has_llm())
+        field = classify_field(job.title or "")
+        suggested_renderer = renderer_for_field(field)
+        yaml_str = json.dumps(resume_to_rendercv_dict(resume), indent=2,
+                              ensure_ascii=False)
+
+        return {
+            "summary": summary,
+            "yaml": yaml_str,
+            "field": field,
+            "suggested_renderer": suggested_renderer,
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@app.post("/api/tailor/docx")
+def tailor_docx(req: ScoreRequest) -> dict:
+    """Same input as `/api/tailor`, rendered straight to .docx.
+
+    Independently re-parses the JD and re-runs `tailor_resume` — it does not
+    share state with a prior `/api/tailor` call. DOCX has no YAML round-trip
+    (unlike the RenderCV/Typst path), so it renders directly from the
+    TailoredResume via `render_docx`, mirroring `studio_docx`.
+    """
+    from .ats_engine import load_profile
+    from .jd_parser import parse_jd
+    from .render_docx import render_docx
+    from .tailor import resume_basename, tailor_resume
+
+    try:
+        job = parse_jd(req.jd, url=req.url or None, use_llm=config.has_llm())
+        if req.company:
+            job.company = req.company
+
+        try:
+            profile = load_profile(None)
+        except SystemExit as exc:
+            return {"error": str(exc)}
+
+        resume = tailor_resume(profile, job, use_llm=config.has_llm())
+        work = config.OUTPUT_DIR / "resume_studio" / "web"
+        work.mkdir(parents=True, exist_ok=True)
+        path = render_docx(resume, work / "resume.docx")
+        person = (profile.get("personal") or {}).get("name")
+        return {
+            "docx_b64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "name": resume_basename(person, job.company) + ".docx",
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.get("/api/cycles")
 def cycles() -> dict:
     """Hiring cycles (derived from the profile's grad date) + career tracks,
@@ -592,10 +716,18 @@ def studio_render(req: StudioRenderRequest) -> dict:
         _person = (load_profile(None).get("personal") or {}).get("name")
     except SystemExit:
         _person = None
+    try:
+        import fitz
+
+        with fitz.open(outs["pdf"]) as doc:
+            page_count = len(doc)
+    except Exception:  # page counting is best-effort — still return the PDF
+        page_count = None
     return {
         "pdf_b64": base64.b64encode(outs["pdf"].read_bytes()).decode("ascii"),
         "typ": outs["typ"].read_text(encoding="utf-8") if outs.get("typ") else None,
         "pdf_name": resume_basename(_person, None) + ".pdf",
+        "page_count": page_count,
     }
 
 

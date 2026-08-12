@@ -242,9 +242,39 @@ export interface StudioRender {
   pdf_b64?: string
   typ?: string | null
   pdf_name?: string
+  page_count?: number | null
   error?: string
 }
 export interface StudioDocx {
+  docx_b64?: string
+  name?: string
+  error?: string
+}
+
+// --- Resume (combined Score + Tailor) -----------------------------------------
+export interface TailorSummary {
+  title: string | null
+  company: string | null
+  location: string | null
+  role_type: string | null
+  seniority: string | null
+  market_tier: string | null
+  remote: boolean
+  ats_platform: string | null
+  gpa_cutoff: number | null
+  years_experience: number | null
+  required_keywords: string[]
+  preferred_keywords: string[]
+  prose: string | null
+}
+export interface TailorResult {
+  summary?: TailorSummary
+  yaml?: string
+  field?: string
+  suggested_renderer?: 'rendercv' | 'docx'
+  error?: string
+}
+export interface TailorDocx {
   docx_b64?: string
   name?: string
   error?: string
@@ -409,6 +439,9 @@ export const api = {
   },
   growth: () => get<GrowthPlan>('/api/growth'),
   score: (body: { jd: string; url?: string; company?: string }) => post<ScoreResult>('/api/score', body),
+  tailor: (body: { jd: string; url?: string; company?: string }) => post<TailorResult>('/api/tailor', body),
+  tailorDocx: (body: { jd: string; url?: string; company?: string }) =>
+    post<TailorDocx>('/api/tailor/docx', body),
   cycles: () => get<CyclesInfo>('/api/cycles'),
   search: (body: {
     tracks: string[]

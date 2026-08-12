@@ -4,7 +4,6 @@ import {
   AtSign,
   Building2,
   CheckCircle2,
-  FileCode2,
   GraduationCap,
   LogOut,
   Menu,
@@ -38,8 +37,7 @@ import { NetworkTab } from '@/components/NetworkTab'
 import { OffersTab } from '@/components/OffersTab'
 import { PipelineFunnel } from '@/components/PipelineFunnel'
 import { ProfilePanel } from '@/components/ProfilePanel'
-import { ResumeStudioTab } from '@/components/ResumeStudioTab'
-import { ScoreTab } from '@/components/ScoreTab'
+import { ResumeTab } from '@/components/ResumeTab'
 import { SignInScreen } from '@/components/SignInScreen'
 import { SyncIndicator } from '@/components/SyncIndicator'
 import { api, type AuthStatus } from '@/lib/api'
@@ -62,8 +60,7 @@ type PageKey =
   | 'pipeline'
   | 'companies'
   | 'find'
-  | 'studio'
-  | 'score'
+  | 'resume'
   | 'linkedin'
   | 'network'
   | 'growth'
@@ -97,8 +94,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Build',
     items: [
-      { key: 'studio', label: 'Resume Studio', icon: FileCode2 },
-      { key: 'score', label: 'Score a JD', icon: Sparkles },
+      { key: 'resume', label: 'Resume', icon: Sparkles },
       { key: 'linkedin', label: 'LinkedIn', icon: AtSign },
     ],
   },
@@ -150,6 +146,7 @@ function Dashboard({ auth }: { auth: AuthStatus }) {
 
   const [page, setPage] = useState<PageKey>(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved === 'studio' || saved === 'score') return 'resume'
     return saved && PAGE_KEYS.has(saved) ? (saved as PageKey) : 'overview'
   })
   const [navOpen, setNavOpen] = useState(false)
@@ -249,10 +246,8 @@ function Dashboard({ auth }: { auth: AuthStatus }) {
         return <CompanyTrackerTab />
       case 'find':
         return <FindJobsTab />
-      case 'studio':
-        return <ResumeStudioTab />
-      case 'score':
-        return <ScoreTab />
+      case 'resume':
+        return <ResumeTab />
       case 'linkedin':
         return <LinkedInTab />
       case 'network':

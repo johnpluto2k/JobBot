@@ -207,6 +207,14 @@ def render_rendercv(resume: TailoredResume, out_path: Path,
                 raise RuntimeError("rendercv succeeded but produced no PDF")
             shutil.copyfile(found[0], out_path)
 
+        # Preserve the Typst intermediate (git-diffable source RenderCV used to
+        # typeset the PDF) before `tmp` is cleaned up — otherwise it's silently
+        # discarded even though rendercv already produced it. Best-effort: skip
+        # silently if the CLI didn't leave a .typ behind.
+        typs = sorted(Path(tmp).glob("*.typ"))
+        if typs:
+            shutil.copyfile(typs[0], out_path.with_suffix(".typ"))
+
     if not out_path.exists():
         raise RuntimeError("rendercv did not write the expected PDF")
     return out_path

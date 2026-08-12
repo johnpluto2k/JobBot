@@ -26,7 +26,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from . import applications, config, gmail_client, google_auth
@@ -762,6 +762,140 @@ def studio_docx(source: str = PROFILE_SOURCE) -> dict:
         return {"error": str(exc)}
     return {"docx_b64": base64.b64encode(path.read_bytes()).decode("ascii"),
             "name": resume_basename(person, company) + ".docx"}
+
+
+class StudioGenerateRequest(BaseModel):
+    jd_text: str
+    company: str | None = None
+    role: str | None = None
+
+
+@app.post("/api/studio/generate")
+def studio_generate(req: StudioGenerateRequest) -> dict:
+    """Run the real Phase-4 pipeline (job_bot.generate.run_generate) end to end
+    from a JD — parse, score, tailor, re-score, render, save the application
+    folder — and record the run in `generated_resumes` so the studio history
+    tab and file-download endpoint can find it again. Never raises: any
+    failure (bad JD, tailoring, rendering, or the DB write) comes back as
+    {"error": ...} rather than a 500.
+    """
+    from . import generate
+    from .db import connect
+
+    try:
+        result = generate.run_generate(
+            req.jd_text, company_override=req.company, title_override=req.role,
+            use_llm=config.has_llm())
+
+        job = result["job"]
+        after_report = result["after_report"]
+
+        con = connect()
+        try:
+            cur = con.execute(
+                "INSERT INTO generated_resumes (company, role, track, ats_before, "
+                "ats_after, folder_path, jd_excerpt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (job.company or "Unknown", job.title or "Unknown", result["field"],
+                 result["before"], result["after"], result["slug"], req.jd_text[:500]))
+            con.commit()
+            row_id = cur.lastrowid
+        finally:
+            con.close()
+
+        kinds = ["pdf", "docx"]
+        if (result["app_dir"] / "resume.yaml").exists():
+            kinds.append("yaml")
+        if (result["app_dir"] / "resume.typ").exists():
+            kinds.append("typ")
+
+        return {
+            "summary": {
+                "title": job.title, "company": job.company, "location": job.location,
+                "track": result["field"],
+                "must_haves": job.required_keywords[:5],
+                "matched_keywords": [h.keyword for h in after_report.matched_keywords],
+                "gaps": [h.keyword for h in after_report.missing_keywords
+                         if h.importance == "required"],
+                "ats_before": round(result["before"], 1),
+                "ats_after": round(result["after"], 1),
+            },
+            "resume_files": {"id": row_id, "kinds": kinds},
+            "history_row": {
+                # created_at is left null here — the frontend re-fetches
+                # /api/studio/history for the authoritative row (incl. the
+                # server-assigned timestamp) rather than us guessing it.
+                "id": row_id, "created_at": None,
+                "company": job.company, "role": job.title, "track": result["field"],
+                "ats_before": round(result["before"], 1), "ats_after": round(result["after"], 1),
+                "folder_path": result["slug"], "kinds": kinds,
+            },
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@app.get("/api/studio/history")
+def studio_history() -> dict:
+    """All past `/api/studio/generate` runs, newest first, with which file
+    kinds (pdf/docx/yaml/typ) still exist on disk for each."""
+    con = connect()
+    try:
+        rows = con.execute(
+            "SELECT id, created_at, company, role, track, ats_before, ats_after, "
+            "folder_path, jd_excerpt FROM generated_resumes ORDER BY created_at DESC"
+        ).fetchall()
+    finally:
+        con.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        app_dir = config.OUTPUT_DIR / "applications" / d["folder_path"]
+        d["kinds"] = [k for k, fname in
+                      [("pdf", "resume.pdf"), ("docx", "resume.docx"),
+                       ("yaml", "resume.yaml"), ("typ", "resume.typ")]
+                      if (app_dir / fname).is_file()]
+        out.append(d)
+    return {"rows": out}
+
+
+_STUDIO_FILE_KINDS = {
+    "pdf": ("resume.pdf", "application/pdf"),
+    "docx": ("resume.docx",
+             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "yaml": ("resume.yaml", "text/plain"),
+    "typ": ("resume.typ", "text/plain"),
+}
+
+
+@app.get("/api/studio/file")
+def studio_file(id: int, kind: str):
+    """Download a specific artifact (pdf/docx/yaml/typ) from a past
+    `/api/studio/generate` run, looked up by its `generated_resumes` row id.
+    """
+    if kind not in _STUDIO_FILE_KINDS:
+        return JSONResponse({"error": f"unknown kind '{kind}' — expected one of "
+                                       f"{sorted(_STUDIO_FILE_KINDS)}"}, status_code=404)
+    fname, media_type = _STUDIO_FILE_KINDS[kind]
+
+    con = connect()
+    try:
+        row = con.execute(
+            "SELECT * FROM generated_resumes WHERE id = ?", (id,)).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        return JSONResponse({"error": f"no generated_resumes row with id {id}"},
+                            status_code=404)
+
+    path = config.OUTPUT_DIR / "applications" / row["folder_path"] / fname
+    if path.resolve().parent.parent != (config.OUTPUT_DIR / "applications").resolve():
+        return JSONResponse({"error": "invalid path"}, status_code=404)
+    if not path.is_file():
+        return JSONResponse({"error": f"no {fname} for row {id}"}, status_code=404)
+
+    ext = fname.rsplit(".", 1)[-1]
+    return FileResponse(path, filename=f"{row['company']}_{kind}.{ext}",
+                        media_type=media_type)
 
 
 class BriefRequest(BaseModel):

@@ -280,6 +280,63 @@ export interface TailorDocx {
   error?: string
 }
 
+// --- Resume Studio (JD-driven generation, persisted) ---------------------------
+export interface StudioGenerateSummary {
+  title: string | null
+  company: string | null
+  location: string | null
+  track: string
+  must_haves: string[]
+  matched_keywords: string[]
+  gaps: string[]
+  ats_before: number
+  ats_after: number
+}
+export interface StudioGenerateResult {
+  summary?: StudioGenerateSummary
+  resume_files?: { id: number; kinds: Array<'pdf' | 'docx' | 'yaml' | 'typ'> }
+  history_row?: {
+    id: number
+    created_at: string | null
+    company: string | null
+    role: string | null
+    track: string
+    ats_before: number
+    ats_after: number
+    folder_path: string
+    kinds: Array<'pdf' | 'docx' | 'yaml' | 'typ'>
+  }
+  error?: string
+}
+export interface StudioHistoryRow {
+  id: number
+  created_at: string
+  company: string
+  role: string
+  track: string
+  ats_before: number
+  ats_after: number
+  folder_path: string
+  jd_excerpt: string
+  kinds: Array<'pdf' | 'docx' | 'yaml' | 'typ'>
+}
+export interface StudioHistory {
+  rows: StudioHistoryRow[]
+}
+
+// --- Manual intake -------------------------------------------------------------
+export interface IntakeResult {
+  id?: number
+  company_id?: number
+  company_name?: string
+  job_title?: string
+  url?: string
+  status?: string
+  portal?: string
+  logged_at?: string
+  error?: string
+}
+
 // --- Company Brief -----------------------------------------------------------
 export interface Brief {
   company: string
@@ -458,6 +515,11 @@ export const api = {
   studioRender: (yaml: string) => post<StudioRender>('/api/resume-studio/render', { yaml }),
   studioDocx: (source: string) =>
     get<StudioDocx>(`/api/resume-studio/docx?source=${encodeURIComponent(source)}`),
+  studioGenerate: (body: { jd_text: string; company?: string; role?: string }) =>
+    post<StudioGenerateResult>('/api/studio/generate', body),
+  studioHistory: () => get<StudioHistory>('/api/studio/history'),
+  intake: (body: { url: string; company: string; title: string; portal?: string; status?: string; notes?: string }) =>
+    post<IntakeResult>('/api/intake', body),
   brief: (body: { company: string; role?: string }) => post<Brief>('/api/brief', body),
   linkedin: (body: { target_role?: string; jd_text?: string }) => post<LinkedInAudit>('/api/linkedin', body),
   recording: (body: { question?: string; transcript: string; duration_seconds?: number }) =>
@@ -465,6 +527,11 @@ export const api = {
   coachSnapshot: () => get<CoachSnapshot>('/api/coach/snapshot'),
   coach: (messages: ChatMessage[]) => post<CoachReply>('/api/coach', { messages }),
   companies: () => get<Company[]>('/api/companies'),
+}
+
+/** URL for a persisted studio-generated resume file — use directly as an <iframe src> or <a href>. */
+export function studioFileUrl(id: number, kind: string) {
+  return `/api/studio/file?id=${id}&kind=${kind}`
 }
 
 /** Map an application status to a Badge status-tint variant. */

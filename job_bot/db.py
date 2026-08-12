@@ -190,6 +190,19 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 CREATE INDEX IF NOT EXISTS idx_company_norm ON companies(name_normalized);
 CREATE INDEX IF NOT EXISTS idx_company_due ON companies(next_check_due);
+
+CREATE TABLE IF NOT EXISTS generated_resumes (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at    TEXT DEFAULT (datetime('now')),
+    company       TEXT NOT NULL,
+    role          TEXT NOT NULL,
+    track         TEXT,
+    ats_before    REAL,
+    ats_after     REAL,
+    folder_path   TEXT NOT NULL,
+    jd_excerpt    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_generated_resumes_created ON generated_resumes(created_at);
 """
 
 

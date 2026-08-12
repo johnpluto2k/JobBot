@@ -1,27 +1,20 @@
-import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import {
-  ChevronDown,
-  ChevronRight,
-  Download,
-  ExternalLink,
-  FileText,
-  Loader2,
-  Printer,
-  Sparkles,
-  Users,
-} from 'lucide-react'
+import { useEffect, useState, type ChangeEvent } from 'react'
+import { Download, ExternalLink, Link2, Loader2, Printer, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ErrorNote } from '@/components/ErrorNote'
-import { api, type ScoreResult, type StudioRender, type StudioSource, type TailorResult } from '@/lib/api'
-
-// The `error` case aside, a resolved /api/tailor call always carries all four
-// fields together — narrow to that once here so downstream JSX can read
-// `tailor.summary`/`tailor.yaml` without re-checking optionality everywhere.
-type TailorSuccess = Required<Pick<TailorResult, 'summary' | 'yaml' | 'field' | 'suggested_renderer'>>
+import {
+  api,
+  studioFileUrl,
+  type StudioGenerateResult,
+  type StudioHistoryRow,
+  type StudioRender,
+  type StudioSource,
+} from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
 function scoreColor(v: number) {
@@ -44,124 +37,375 @@ function b64ToBytes(b64: string): Uint8Array {
   return out
 }
 
-/** Labeled fact row for the job-summary card. */
-function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// --- "Link to application" mini action ------------------------------------------
+type IntakeState = { status: 'idle' | 'loading' | 'done' | 'error'; message?: string }
+
+function LinkToApplicationButton({
+  company,
+  title,
+  state,
+  onStateChange,
+}: {
+  company: string | null | undefined
+  title: string | null | undefined
+  state: IntakeState
+  onStateChange: (s: IntakeState) => void
+}) {
+  async function link() {
+    onStateChange({ status: 'loading' })
+    try {
+      const r = await api.intake({ url: '', company: company ?? '', title: title ?? '', portal: 'other', status: 'applied' })
+      if (r.error) onStateChange({ status: 'error', message: r.error })
+      else onStateChange({ status: 'done' })
+    } catch (e) {
+      onStateChange({ status: 'error', message: String((e as Error).message ?? e) })
+    }
+  }
+
+  if (state.status === 'done') {
+    return <span className="text-xs font-medium" style={{ color: 'var(--status-green)' }}>Linked</span>
+  }
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium text-foreground">{value ?? '—'}</span>
+    <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={link} disabled={state.status === 'loading'}>
+        {state.status === 'loading' ? <Loader2 className="animate-spin" /> : <Link2 />} Link to application
+      </Button>
+      {state.status === 'error' && <span className="text-xs text-destructive">{state.message}</span>}
     </div>
   )
 }
 
 export function ResumeTab() {
-  // --- Input card state -------------------------------------------------------
+  const [activeTab, setActiveTab] = useState<'generate' | 'code'>('generate')
+
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-2">
+        <Button variant={activeTab === 'generate' ? 'default' : 'outline'} onClick={() => setActiveTab('generate')}>
+          Generate from JD
+        </Button>
+        <Button variant={activeTab === 'code' ? 'default' : 'outline'} onClick={() => setActiveTab('code')}>
+          Edit as code
+        </Button>
+      </div>
+
+      {activeTab === 'generate' ? <GenerateFromJdTab /> : <EditAsCodeTab />}
+    </div>
+  )
+}
+
+// =================================================================================
+// Tab 1 — Generate from JD
+// =================================================================================
+
+function GenerateFromJdTab() {
   const [jd, setJd] = useState('')
-  const [url, setUrl] = useState('')
   const [company, setCompany] = useState('')
+  const [role, setRole] = useState('')
 
-  // --- Score box state ---------------------------------------------------------
-  const [scoreLoading, setScoreLoading] = useState(false)
-  const [scoreError, setScoreError] = useState<string | null>(null)
-  const [score, setScore] = useState<ScoreResult | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+  const [result, setResult] = useState<StudioGenerateResult | null>(null)
+  const [intakeMain, setIntakeMain] = useState<IntakeState>({ status: 'idle' })
 
-  // --- Job summary + tailored YAML state ---------------------------------------
-  const [tailorLoading, setTailorLoading] = useState(false)
-  const [tailorError, setTailorError] = useState<string | null>(null)
-  const [tailor, setTailor] = useState<TailorSuccess | null>(null)
+  // Bumped on every successful generate so the history table below refetches.
+  const [refreshKey, setRefreshKey] = useState(0)
+  const history = useAsync(api.studioHistory, [refreshKey])
 
-  // --- Tailored resume (PDF) state ----------------------------------------------
-  const [renderLoading, setRenderLoading] = useState(false)
-  const [renderError, setRenderError] = useState<string | null>(null)
-  const [render, setRender] = useState<StudioRender | null>(null)
-  // Bumped on every Analyze click; the background studioRender callback checks
-  // it before writing state so a stale render from a superseded Analyze can
-  // never clobber a newer one (the Analyze button re-enables — and can be
-  // clicked again — before the background PDF render finishes).
-  const analyzeGenRef = useRef(0)
-  // Snapshot of {jd, url, company} at the moment Analyze was clicked, so
-  // "resume.docx" always matches what's on screen even if the JD textarea is
-  // edited afterward — not whatever's currently typed.
-  const [analyzedInput, setAnalyzedInput] = useState<{ jd: string; url?: string; company?: string } | null>(null)
+  const [rowIntake, setRowIntake] = useState<Record<number, IntakeState>>({})
 
-  // --- Advanced: Edit YAML section ----------------------------------------------
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  async function generate() {
+    if (!jd.trim()) return
+    setGenerating(true)
+    setGenError(null)
+    setResult(null)
+    setIntakeMain({ status: 'idle' })
+    try {
+      const r = await api.studioGenerate({ jd_text: jd, company: company || undefined, role: role || undefined })
+      if (r.error || !r.summary || !r.resume_files || !r.history_row) {
+        setGenError(r.error ?? 'no resume returned')
+        return
+      }
+      setResult(r)
+      setRefreshKey((k) => k + 1)
+    } catch (e) {
+      setGenError(String((e as Error).message ?? e))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const summary = result?.summary
+  const resumeFiles = result?.resume_files
+
+  return (
+    <div className="space-y-6">
+      {/* Input card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Sparkles size={17} style={{ color: 'var(--primary)' }} /> Generate a tailored resume
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Paste a job description — get an honest ATS match, the real gaps, and a tailored, persisted
+            application package (PDF/DOCX/YAML), all in one click.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              placeholder="Company (optional — auto-detected from JD)"
+            />
+            <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role (optional — auto-detected from JD)" />
+          </div>
+          <Textarea
+            value={jd}
+            onChange={(e) => setJd(e.target.value)}
+            placeholder="Paste the job description here…"
+            className="min-h-[200px]"
+          />
+          <div className="flex justify-end border-t border-border pt-4">
+            <Button onClick={generate} disabled={generating || !jd.trim()}>
+              {generating ? (
+                <>
+                  <Loader2 className="animate-spin" /> Generating…
+                </>
+              ) : (
+                <>
+                  <Sparkles /> Generate Tailored Resume
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="min-h-[1.25rem]">
+        {genError && <ErrorNote error={genError} title="Generation failed." showStartHint={false} />}
+      </div>
+
+      {/* Summary card */}
+      {summary && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Job summary</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <span className="text-lg font-semibold text-foreground">
+                {summary.title || 'Role'} @ {summary.company || '—'}
+                {summary.location && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">{summary.location}</span>
+                )}
+              </span>
+              <Badge variant="blue">{summary.track}</Badge>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Must-haves
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {summary.must_haves.length ? (
+                  summary.must_haves.map((k) => (
+                    <Badge key={k} variant="slate">
+                      {k}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                You already cover
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {summary.matched_keywords.length ? (
+                  summary.matched_keywords.map((k) => (
+                    <Badge key={k} variant="green">
+                      {k}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Honest gaps
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {summary.gaps.length ? (
+                  summary.gaps.map((k) => (
+                    <Badge key={k} variant="red">
+                      {k}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">none — you cover them all</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 border-t border-border pt-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                ATS match
+              </span>
+              <span className="tabular-nums text-sm font-medium" style={{ color: scoreColor(summary.ats_before) }}>
+                {summary.ats_before}
+              </span>
+              <span className="text-muted-foreground">→</span>
+              <span className="tabular-nums text-base font-semibold" style={{ color: scoreColor(summary.ats_after) }}>
+                {summary.ats_after}
+              </span>
+            </div>
+
+            <div className="border-t border-border pt-3">
+              <LinkToApplicationButton
+                company={summary.company}
+                title={summary.title}
+                state={intakeMain}
+                onStateChange={setIntakeMain}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tailored resume card */}
+      {resumeFiles && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tailored resume</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {resumeFiles.kinds.map((k) => (
+                <Button key={k} variant="outline" asChild>
+                  <a href={studioFileUrl(resumeFiles.id, k)} download>
+                    <Download /> resume.{k}
+                  </a>
+                </Button>
+              ))}
+            </div>
+            {resumeFiles.kinds.includes('pdf') && (
+              <iframe
+                title="Tailored resume PDF"
+                src={studioFileUrl(resumeFiles.id, 'pdf')}
+                className="h-[48rem] w-full rounded-lg border border-border"
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* History table — always visible */}
+      <div className="space-y-3">
+        <h2 className="text-base font-semibold tracking-tight text-foreground">Generation history</h2>
+        {history.error ? (
+          <ErrorNote error={history.error} showStartHint={false} />
+        ) : history.loading ? (
+          <div className="h-48 animate-pulse rounded-xl border border-border bg-card" />
+        ) : (
+          <Card className="overflow-hidden p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Track</TableHead>
+                  <TableHead>ATS</TableHead>
+                  <TableHead>Downloads</TableHead>
+                  <TableHead className="text-right">Application</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(history.data?.rows ?? []).map((row: StudioHistoryRow) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="tabular-nums text-muted-foreground">{fmtDate(row.created_at)}</TableCell>
+                    <TableCell className="font-medium text-foreground">{row.company || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{row.role || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant="slate">{row.track}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <span className="tabular-nums" style={{ color: scoreColor(row.ats_before) }}>
+                        {row.ats_before}
+                      </span>
+                      <span className="mx-1 text-muted-foreground">→</span>
+                      <span className="tabular-nums" style={{ color: scoreColor(row.ats_after) }}>
+                        {row.ats_after}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {row.kinds.map((k) => (
+                          <a
+                            key={k}
+                            href={studioFileUrl(row.id, k)}
+                            download
+                            title={`Download resume.${k}`}
+                            className="text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <Download size={14} />
+                          </a>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <LinkToApplicationButton
+                        company={row.company}
+                        title={row.role}
+                        state={rowIntake[row.id] ?? { status: 'idle' }}
+                        onStateChange={(s) => setRowIntake((prev) => ({ ...prev, [row.id]: s }))}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {(history.data?.rows.length ?? 0) === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                      No resumes generated yet — use the form above to generate your first one.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// =================================================================================
+// Tab 2 — Edit as code (ported from the old "Advanced: Edit YAML" section, verbatim
+// behavior — calls /api/resume-studio/yaml + /api/resume-studio/render, unchanged)
+// =================================================================================
+
+function EditAsCodeTab() {
   const [yamlText, setYamlText] = useState('')
-  // True once the user has deliberately set YAML content themselves (typed in
-  // the editor, or picked a "Start from" source) — after that, Analyze must
-  // never silently overwrite it.
-  const [yamlDirty, setYamlDirty] = useState(false)
   const sources = useAsync(api.studioSources, [])
   const [source, setSource] = useState('profile')
   const [sourceYamlLoading, setSourceYamlLoading] = useState(false)
   const [reRendering, setReRendering] = useState(false)
-
-  // --- Download resume.docx (lazy, fetched on click) ----------------------------
-  const [docxLoading, setDocxLoading] = useState(false)
-  const [docxError, setDocxError] = useState<string | null>(null)
-
-  const analyzing = scoreLoading || tailorLoading
-
-  async function analyze() {
-    if (!jd.trim()) return
-    const gen = ++analyzeGenRef.current
-    const body = { jd, url: url || undefined, company: company || undefined }
-    setAnalyzedInput(body)
-
-    // Score and tailor run concurrently — independent loading/error state each.
-    setScoreLoading(true)
-    setScoreError(null)
-    setScore(null)
-    setTailorLoading(true)
-    setTailorError(null)
-    setTailor(null)
-    setRenderLoading(false)
-    setRenderError(null)
-    setRender(null)
-
-    const scorePromise = api
-      .score(body)
-      .then((r) => setScore(r))
-      .catch((e) => setScoreError(String((e as Error).message ?? e)))
-      .finally(() => setScoreLoading(false))
-
-    const tailorPromise = api
-      .tailor(body)
-      .then((r) => {
-        if (r.error || !r.summary || !r.yaml || !r.field || !r.suggested_renderer) {
-          setTailorError(r.error ?? 'no resume returned')
-          return
-        }
-        const yaml = r.yaml
-        setTailor({ summary: r.summary, yaml: r.yaml, field: r.field, suggested_renderer: r.suggested_renderer })
-        // Pre-fill the YAML editor, but never clobber a deliberate user choice.
-        if (!yamlDirty) setYamlText(yaml)
-        // As soon as we have YAML, kick off typesetting in the background.
-        // The Analyze button re-enables once tailor resolves — well before
-        // this finishes — so a newer Analyze click can supersede this one;
-        // `gen` guards every state write below against that race.
-        setRenderLoading(true)
-        api
-          .studioRender(yaml)
-          .then((rr) => {
-            if (gen !== analyzeGenRef.current) return
-            if (rr.error) setRenderError(rr.error)
-            else setRender(rr)
-          })
-          .catch((e) => {
-            if (gen !== analyzeGenRef.current) return
-            setRenderError(String((e as Error).message ?? e))
-          })
-          .finally(() => {
-            if (gen !== analyzeGenRef.current) return
-            setRenderLoading(false)
-          })
-      })
-      .catch((e) => setTailorError(String((e as Error).message ?? e)))
-      .finally(() => setTailorLoading(false))
-
-    await Promise.allSettled([scorePromise, tailorPromise])
-  }
+  const [renderError, setRenderError] = useState<string | null>(null)
+  const [render, setRender] = useState<StudioRender | null>(null)
 
   async function loadSourceYaml(src: string) {
     setSourceYamlLoading(true)
@@ -169,16 +413,22 @@ export function ResumeTab() {
     try {
       const r = await api.studioYaml(src)
       if (r.error) setRenderError(r.error)
-      else {
-        setYamlText(r.yaml ?? '')
-        setYamlDirty(true) // deliberate override — Analyze must not replace it later
-      }
+      else setYamlText(r.yaml ?? '')
     } catch (e) {
       setRenderError(String((e as Error).message ?? e))
     } finally {
       setSourceYamlLoading(false)
     }
   }
+
+  // Load the default source's YAML on mount — this tab is now fully
+  // independent of "Generate from JD" (each has its own state), so there's
+  // no cross-tab prefill race to avoid; without this the editor opens empty
+  // with no way to populate it until the user picks a different source.
+  useEffect(() => {
+    loadSourceYaml(source)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function onSourceChange(e: ChangeEvent<HTMLSelectElement>) {
     const src = e.target.value
@@ -200,464 +450,125 @@ export function ResumeTab() {
     }
   }
 
-  async function downloadDocx() {
-    if (!analyzedInput) return
-    setDocxLoading(true)
-    setDocxError(null)
-    try {
-      // Use the snapshot from the last Analyze, not live jd/url/company —
-      // the JD textarea may have been edited since, and the docx must match
-      // what's actually on screen (score/summary/PDF), not whatever's typed now.
-      const r = await api.tailorDocx(analyzedInput)
-      if (r.error || !r.docx_b64) {
-        setDocxError(r.error ?? 'no docx returned')
-        return
-      }
-      downloadBlob(
-        b64ToBytes(r.docx_b64).buffer as ArrayBuffer,
-        r.name ?? 'resume.docx',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      )
-    } catch (e) {
-      setDocxError(String((e as Error).message ?? e))
-    } finally {
-      setDocxLoading(false)
-    }
-  }
-
-  const showResultsRow = scoreLoading || scoreError || score || tailorLoading || tailorError || tailor
-  const showResumeCard = tailorLoading || tailor || renderLoading || render || renderError
-
   return (
-    <div className="space-y-6">
-      {/* Input card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles size={17} style={{ color: 'var(--primary)' }} /> Analyze a job description
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Paste a JD once — get the live ATS match + network verdict, a job summary, and a tailored,
-            one-page resume, all from one click.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Textarea
-            value={jd}
-            onChange={(e) => setJd(e.target.value)}
-            placeholder="Paste the full job description here…"
-            className="min-h-[200px]"
-          />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Posting URL (optional)" />
-            <Input
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="Company override (optional)"
-            />
-          </div>
-          <div className="flex justify-end border-t border-border pt-4">
-            <Button onClick={analyze} disabled={analyzing || !jd.trim()}>
-              {analyzing ? (
-                <>
-                  <Loader2 className="animate-spin" /> Analyzing…
-                </>
-              ) : (
-                <>
-                  <Sparkles /> Analyze
-                </>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Edit as code</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          resume-as-code, RenderCV YAML — start from a source, edit freely, and render a scratch PDF preview
+          (not saved to the generation history).
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <label className="min-w-0 flex-1 sm:max-w-sm">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Start from
+            </span>
+            <select
+              value={source}
+              onChange={onSourceChange}
+              disabled={sourceYamlLoading}
+              className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {(sources.data?.sources ?? [{ key: 'profile', label: 'Master profile (no target JD)' }]).map(
+                (s: StudioSource) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ),
               )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {showResultsRow && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Score box */}
-          <div className="space-y-6">
-            {scoreError && <ErrorNote error={scoreError} title="Scoring failed." showStartHint={false} />}
-            {scoreLoading && !score && (
-              <Card>
-                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Loader2 size={15} className="animate-spin" /> Scoring…
-                </CardContent>
-              </Card>
-            )}
-            {score && (
-              <div className="space-y-6">
-                {/* Verdict banner */}
-                <Card>
-                  <CardContent className="py-5">
-                    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                      <span className="text-lg font-semibold text-foreground">
-                        {score.job.title || 'Role'} @ {score.job.company || '—'}
-                      </span>
-                      {score.job.market_tier && <Badge variant="slate">{score.job.market_tier}</Badge>}
-                      <Badge variant="blue">{score.ats.platform}</Badge>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="text-3xl font-semibold tabular-nums"
-                        style={{ color: scoreColor(score.ats.overall_score) }}
-                      >
-                        {score.ats.overall_score}
-                        <span className="text-lg text-muted-foreground">/100</span>
-                      </div>
-                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.min(100, score.ats.overall_score)}%`,
-                            background: scoreColor(score.ats.overall_score),
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p className="mt-4 text-base font-medium text-foreground">{score.decision.verdict}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{score.decision.rationale}</p>
-                  </CardContent>
-                </Card>
-
-                <div className="grid gap-6 lg:grid-cols-2">
-                  {/* Keywords */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Keyword match</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Matched
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {score.ats.matched.length ? (
-                            score.ats.matched.map((k) => (
-                              <Badge key={k} variant="green">
-                                {k}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">—</span>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Missing (required)
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {score.ats.missing_required.length ? (
-                            score.ats.missing_required.map((k) => (
-                              <Badge key={k} variant="red">
-                                {k}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">none — you cover them all</span>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Gap analysis */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Ranked gap analysis</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2.5">
-                      {score.ats.gap_analysis.map((g) => (
-                        <div key={g.keyword} className="text-sm">
-                          <div className="flex items-baseline justify-between">
-                            <span className="font-medium text-foreground">
-                              {g.keyword}{' '}
-                              <Badge
-                                variant={g.importance === 'required' ? 'red' : 'slate'}
-                                className="ml-1 align-middle"
-                              >
-                                {g.importance}
-                              </Badge>
-                            </span>
-                            <span className="tabular-nums text-muted-foreground">+{g.impact}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{g.action}</p>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Recommended actions + who to reach */}
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Recommended actions</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="list-inside list-disc space-y-1.5 text-sm text-foreground marker:text-primary">
-                        {score.decision.actions.map((a, i) => (
-                          <li key={i}>{a.replace(/\*\*(.+?)\*\*/g, '$1')}</li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                  {score.decision.matches.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-base">
-                          <Users size={16} /> Warm contacts here
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-1.5">
-                        {score.decision.matches.map((m, i) => (
-                          <div key={i} className="flex items-center justify-between text-sm">
-                            <span className="font-medium text-foreground">{m.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {m.relationship} {m.warmth != null && `· warmth ${m.warmth}`}
-                            </span>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Job summary box */}
-          <div className="space-y-6">
-            {tailorError && <ErrorNote error={tailorError} title="Analysis failed." showStartHint={false} />}
-            {tailorLoading && !tailor && (
-              <Card>
-                <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Loader2 size={15} className="animate-spin" /> Summarizing the role…
-                </CardContent>
-              </Card>
-            )}
-            {tailor && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Job summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-1.5">
-                    <SummaryRow label="Title" value={tailor.summary.title} />
-                    <SummaryRow label="Company" value={tailor.summary.company} />
-                    <SummaryRow label="Location" value={tailor.summary.location} />
-                    <SummaryRow label="Role type" value={tailor.summary.role_type} />
-                    <SummaryRow label="Seniority" value={tailor.summary.seniority} />
-                    <SummaryRow label="Market tier" value={tailor.summary.market_tier} />
-                    <SummaryRow
-                      label="Remote"
-                      value={<Badge variant={tailor.summary.remote ? 'blue' : 'slate'}>{tailor.summary.remote ? 'Remote' : 'On-site'}</Badge>}
-                    />
-                    <SummaryRow label="ATS platform" value={tailor.summary.ats_platform} />
-                    <SummaryRow
-                      label="GPA cutoff"
-                      value={tailor.summary.gpa_cutoff != null ? tailor.summary.gpa_cutoff : null}
-                    />
-                    <SummaryRow
-                      label="Years experience"
-                      value={tailor.summary.years_experience != null ? tailor.summary.years_experience : null}
-                    />
-                  </div>
-
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Required keywords
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {tailor.summary.required_keywords.length ? (
-                        tailor.summary.required_keywords.map((k) => (
-                          <Badge key={k} variant="blue">
-                            {k}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Preferred keywords
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {tailor.summary.preferred_keywords.length ? (
-                        tailor.summary.preferred_keywords.map((k) => (
-                          <Badge key={k} variant="slate">
-                            {k}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {tailor.summary.prose && (
-                    <p className="border-t border-border pt-3 text-sm leading-relaxed text-foreground">
-                      {tailor.summary.prose}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tailored resume card */}
-      {showResumeCard && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Tailored resume</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="min-h-[1.25rem] space-y-2" aria-live="polite">
-              {renderLoading && (
-                <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 size={13} className="animate-spin" /> Typesetting via Typst — usually 10–30s.
-                </p>
-              )}
-              {renderError && <ErrorNote error={renderError} title="Render failed." showStartHint={false} />}
-            </div>
-
-            {render?.pdf_b64 && tailor && (
+            </select>
+          </label>
+          <Button onClick={reRender} disabled={reRendering || sourceYamlLoading || !yamlText.trim()}>
+            {reRendering ? (
               <>
-                <div className="min-h-[1.25rem]">
-                  {render.page_count === 1 && (
-                    <Badge variant="green">Fits on one page</Badge>
-                  )}
-                  {render.page_count != null && render.page_count > 1 && (
-                    <Badge variant="amber">
-                      Resume is {render.page_count} pages — consider trimming in Edit YAML below
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      downloadBlob(
-                        b64ToBytes(render.pdf_b64!).buffer as ArrayBuffer,
-                        render.pdf_name ?? 'resume.pdf',
-                        'application/pdf',
-                      )
-                    }
-                  >
-                    <Download /> resume.pdf
-                  </Button>
-                  <Button variant="outline" onClick={() => downloadBlob(tailor.yaml, 'resume.yaml', 'text/plain')}>
-                    <Download /> resume.yaml
-                  </Button>
-                  {render.typ && (
-                    <Button variant="outline" onClick={() => downloadBlob(render.typ!, 'resume.typ', 'text/plain')}>
-                      <Download /> resume.typ
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={downloadDocx} disabled={docxLoading}>
-                    {docxLoading ? <Loader2 className="animate-spin" /> : <FileText />} resume.docx
-                  </Button>
-                  <Button variant="outline" asChild>
-                    <a href="https://typst.app" target="_blank" rel="noreferrer">
-                      <ExternalLink /> Open typst.app
-                    </a>
-                  </Button>
-                </div>
-                <div className="min-h-[1.25rem]">
-                  {docxError && <ErrorNote error={docxError} title="Download failed." showStartHint={false} />}
-                </div>
-                <iframe
-                  title="Tailored resume PDF"
-                  src={`data:application/pdf;base64,${render.pdf_b64}`}
-                  className="h-[48rem] w-full rounded-lg border border-border"
-                />
+                <Loader2 className="animate-spin" /> Typesetting…
+              </>
+            ) : (
+              <>
+                <Printer /> Re-render PDF
               </>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </Button>
+        </div>
 
-      {/* Advanced: Edit YAML */}
-      <Card>
-        <button
-          type="button"
-          onClick={() => setAdvancedOpen((v) => !v)}
-          className="flex w-full items-center justify-between gap-2 px-6 py-4 text-left"
-          aria-expanded={advancedOpen}
-        >
-          <span className="flex items-center gap-2 text-base font-semibold tracking-tight">
-            {advancedOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />} Advanced: Edit YAML
-          </span>
-          <span className="text-xs text-muted-foreground">resume-as-code, RenderCV YAML</span>
-        </button>
-        {advancedOpen && (
-          <CardContent className="space-y-5 border-t border-border pt-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-              <label className="min-w-0 flex-1 sm:max-w-sm">
-                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Start from
-                </span>
-                <select
-                  value={source}
-                  onChange={onSourceChange}
-                  disabled={sourceYamlLoading}
-                  className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {(sources.data?.sources ?? [{ key: 'profile', label: 'Master profile (no target JD)' }]).map(
-                    (s: StudioSource) => (
-                      <option key={s.key} value={s.key}>
-                        {s.label}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <Button onClick={reRender} disabled={reRendering || sourceYamlLoading || !yamlText.trim()}>
-                {reRendering ? (
-                  <>
-                    <Loader2 className="animate-spin" /> Typesetting…
-                  </>
-                ) : (
-                  <>
-                    <Printer /> Re-render PDF
-                  </>
-                )}
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <label
+              htmlFor="resume-yaml"
+              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            >
+              RenderCV YAML
+            </label>
+            <span className="min-w-0 text-xs text-muted-foreground">
+              the résumé — reorder bullets, rewrite wording, add/remove sections (JSON is valid YAML)
+            </span>
+          </div>
+          <Textarea
+            id="resume-yaml"
+            value={yamlText}
+            onChange={(e) => setYamlText(e.target.value)}
+            disabled={sourceYamlLoading}
+            spellCheck={false}
+            placeholder={sourceYamlLoading ? 'Loading résumé YAML…' : 'RenderCV YAML…'}
+            aria-busy={sourceYamlLoading}
+            className="min-h-[26rem] w-full resize-y overflow-auto whitespace-pre font-mono text-xs leading-relaxed"
+          />
+        </div>
+
+        <div className="min-h-[1.25rem] space-y-2" aria-live="polite">
+          {reRendering && (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 size={13} className="animate-spin" /> Typesetting via Typst — usually 10–30s.
+            </p>
+          )}
+          {renderError && <ErrorNote error={renderError} title="Render failed." showStartHint={false} />}
+        </div>
+
+        {render?.pdf_b64 && (
+          <>
+            <div className="min-h-[1.25rem]">
+              {render.page_count === 1 && <Badge variant="green">Fits on one page</Badge>}
+              {render.page_count != null && render.page_count > 1 && (
+                <Badge variant="amber">Resume is {render.page_count} pages — consider trimming</Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  downloadBlob(
+                    b64ToBytes(render.pdf_b64!).buffer as ArrayBuffer,
+                    render.pdf_name ?? 'resume.pdf',
+                    'application/pdf',
+                  )
+                }
+              >
+                <Download /> resume.pdf
+              </Button>
+              <Button variant="outline" onClick={() => downloadBlob(yamlText, 'resume.yaml', 'text/plain')}>
+                <Download /> resume.yaml
+              </Button>
+              {render.typ && (
+                <Button variant="outline" onClick={() => downloadBlob(render.typ!, 'resume.typ', 'text/plain')}>
+                  <Download /> resume.typ
+                </Button>
+              )}
+              <Button variant="outline" asChild>
+                <a href="https://typst.app" target="_blank" rel="noreferrer">
+                  <ExternalLink /> Open typst.app
+                </a>
               </Button>
             </div>
-
-            <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <label
-                  htmlFor="resume-yaml"
-                  className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                >
-                  RenderCV YAML
-                </label>
-                <span className="min-w-0 text-xs text-muted-foreground">
-                  the résumé — reorder bullets, rewrite wording, add/remove sections (JSON is valid YAML)
-                </span>
-              </div>
-              <Textarea
-                id="resume-yaml"
-                value={yamlText}
-                onChange={(e) => {
-                  setYamlText(e.target.value)
-                  setYamlDirty(true)
-                }}
-                disabled={sourceYamlLoading}
-                spellCheck={false}
-                placeholder={sourceYamlLoading ? 'Loading résumé YAML…' : 'RenderCV YAML…'}
-                aria-busy={sourceYamlLoading}
-                className="min-h-[26rem] w-full resize-y overflow-auto whitespace-pre font-mono text-xs leading-relaxed"
-              />
-            </div>
-          </CardContent>
+            <iframe
+              title="Résumé PDF preview"
+              src={`data:application/pdf;base64,${render.pdf_b64}`}
+              className="h-[48rem] w-full rounded-lg border border-border"
+            />
+          </>
         )}
-      </Card>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

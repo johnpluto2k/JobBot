@@ -94,7 +94,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Build',
     items: [
-      { key: 'resume', label: 'Resume', icon: Sparkles },
+      { key: 'resume', label: 'Resume Studio', icon: Sparkles },
       { key: 'linkedin', label: 'LinkedIn', icon: AtSign },
     ],
   },

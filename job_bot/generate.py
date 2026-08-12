@@ -61,6 +61,110 @@ def _checklist(job, app_dir: Path, before: float, after: float) -> str:
 """
 
 
+def run_generate(jd_text: str, *, url: str | None = None,
+                  company_override: str | None = None,
+                  title_override: str | None = None,
+                  profile_path: Path | None = None,
+                  use_llm: bool | None = None,
+                  renderer: str | None = None,
+                  out_dir: Path | None = None) -> dict:
+    """Core Phase-4 pipeline: parse -> score(before) -> tailor -> score(after)
+    -> render -> save application folder. Used by both the CLI and the API —
+    do not duplicate this logic anywhere else."""
+    try:
+        # The print statements below use non-ASCII characters (e.g. '->' as
+        # a real arrow). stdout defaults to cp1252 on Windows outside a real
+        # console (e.g. uvicorn's redirected stdout), which can't encode
+        # them — reconfigure defensively here too, not just in main(), since
+        # this function is also called directly from the API process.
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    profile = load_profile(profile_path)
+
+    job = parse_jd(jd_text, url=url, use_llm=use_llm)
+    if company_override:
+        job.company = company_override
+    if title_override:
+        job.title = title_override
+
+    # Template auto-selection: the JD's career field picks the résumé format
+    # (tech fields -> RenderCV/CS template, everything else -> docx/VMH). An
+    # explicit renderer always wins over the auto-pick.
+    field = classify_field(job.title or "", job.raw_text or "")
+    chosen_renderer = renderer or renderer_for_field(field)
+
+    # before: master profile vs JD
+    before_report = score(job, profile)
+    before = before_report.overall_score
+
+    print(f"Tailoring resume for: {job.title or 'role'} @ {job.company or '—'} "
+          f"(ATS: {job.ats_platform})")
+    print(f"  · field: {field} -> renderer: {chosen_renderer}"
+          + ("  (via --renderer)" if renderer else "  (auto)"))
+    resume = tailor_resume(profile, job, use_llm=use_llm)
+
+    # after: tailored resume text vs JD (re-score using a profile-shaped view)
+    tailored_profile = _resume_as_profile(resume, profile)
+    after_report = score(job, tailored_profile)
+    after = after_report.overall_score
+
+    slug = f"{_slug(job.company)}_{_slug(job.title)}".strip("_") or "application"
+    app_dir = Path(out_dir) if out_dir else config.OUTPUT_DIR / "applications" / slug
+    app_dir.mkdir(parents=True, exist_ok=True)
+
+    docx_path = render_docx(resume, app_dir / "resume.docx")
+    pdf_path = None
+    if chosen_renderer == "rendercv":
+        try:
+            from .render_rendercv import render_rendercv
+            pdf_path = render_rendercv(resume, app_dir / "resume.pdf")
+            print(f"  · rendered via RenderCV (source: {app_dir / 'resume.yaml'})")
+        except Exception as exc:
+            print(f"  ! RenderCV render failed ({exc}); falling back to reportlab PDF")
+    if pdf_path is None:
+        try:
+            pdf_path = render_pdf(resume, app_dir / "resume.pdf")
+        except Exception as exc:
+            print(f"  ! PDF render failed ({exc}); DOCX still produced")
+
+    letter = generate_cover_letter(profile, job, use_llm=use_llm)
+    (app_dir / "cover_letter.txt").write_text(letter, encoding="utf-8")
+    cover_letter_to_docx(letter, app_dir / "cover_letter.docx")
+
+    (app_dir / "checklist.md").write_text(_checklist(job, app_dir, before, after), encoding="utf-8")
+    # Record why this application used the template it did, so Resume Studio can
+    # read the field/renderer decision back instead of only the CLI seeing it.
+    (app_dir / "meta.json").write_text(
+        json.dumps({"field": field, "renderer": chosen_renderer}, indent=2), encoding="utf-8")
+
+    print("\n=== Application package generated ===")
+    print(f"  dir          : {app_dir}")
+    print(f"  resume       : {docx_path.name}" + (f" + {pdf_path.name}" if pdf_path else ""))
+    print(f"  cover letter : cover_letter.docx + .txt")
+    print(f"  checklist    : checklist.md")
+    print(f"  ATS match    : {before:.1f} → {after:.1f}  "
+          f"({'+' if after >= before else ''}{after - before:.1f})")
+    print(f"  experience   : {len(resume.experience)} roles, "
+          f"{sum(len(r.bullets) for r in resume.experience)} bullets selected")
+    print(f"  skills order : {', '.join(resume.skills[:8])}{'…' if len(resume.skills) > 8 else ''}")
+
+    return {
+        "job": job,
+        "field": field,
+        "renderer": chosen_renderer,
+        "before": before,
+        "after": after,
+        "before_report": before_report,
+        "after_report": after_report,
+        "resume": resume,
+        "app_dir": app_dir,
+        "slug": slug,
+        "docx_path": docx_path,
+        "pdf_path": pdf_path,
+    }
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -83,71 +187,11 @@ def main() -> None:
     args = ap.parse_args()
 
     jd_text = _read_jd(args)
-    profile = load_profile(args.profile)
-    use_llm = False if args.no_llm else None
-
-    job = parse_jd(jd_text, url=args.url, use_llm=use_llm)
-    if args.company:
-        job.company = args.company
-
-    # Template auto-selection: the JD's career field picks the résumé format
-    # (tech fields -> RenderCV/CS template, everything else -> docx/VMH). An
-    # explicit --renderer always wins over the auto-pick.
-    field = classify_field(job.title or "", job.raw_text or "")
-    renderer = args.renderer or renderer_for_field(field)
-
-    # before: master profile vs JD
-    before = score(job, profile).overall_score
-
-    print(f"Tailoring resume for: {job.title or 'role'} @ {job.company or '—'} "
-          f"(ATS: {job.ats_platform})")
-    print(f"  · field: {field} -> renderer: {renderer}"
-          + ("  (via --renderer)" if args.renderer else "  (auto)"))
-    resume = tailor_resume(profile, job, use_llm=use_llm)
-
-    # after: tailored resume text vs JD (re-score using a profile-shaped view)
-    tailored_profile = _resume_as_profile(resume, profile)
-    after = score(job, tailored_profile).overall_score
-
-    slug = f"{_slug(job.company)}_{_slug(job.title)}".strip("_") or "application"
-    app_dir = Path(args.out) if args.out else config.OUTPUT_DIR / "applications" / slug
-    app_dir.mkdir(parents=True, exist_ok=True)
-
-    docx_path = render_docx(resume, app_dir / "resume.docx")
-    pdf_path = None
-    if renderer == "rendercv":
-        try:
-            from .render_rendercv import render_rendercv
-            pdf_path = render_rendercv(resume, app_dir / "resume.pdf")
-            print(f"  · rendered via RenderCV (source: {app_dir / 'resume.yaml'})")
-        except Exception as exc:
-            print(f"  ! RenderCV render failed ({exc}); falling back to reportlab PDF")
-    if pdf_path is None:
-        try:
-            pdf_path = render_pdf(resume, app_dir / "resume.pdf")
-        except Exception as exc:
-            print(f"  ! PDF render failed ({exc}); DOCX still produced")
-
-    letter = generate_cover_letter(profile, job, use_llm=use_llm)
-    (app_dir / "cover_letter.txt").write_text(letter, encoding="utf-8")
-    cover_letter_to_docx(letter, app_dir / "cover_letter.docx")
-
-    (app_dir / "checklist.md").write_text(_checklist(job, app_dir, before, after), encoding="utf-8")
-    # Record why this application used the template it did, so Resume Studio can
-    # read the field/renderer decision back instead of only the CLI seeing it.
-    (app_dir / "meta.json").write_text(
-        json.dumps({"field": field, "renderer": renderer}, indent=2), encoding="utf-8")
-
-    print("\n=== Application package generated ===")
-    print(f"  dir          : {app_dir}")
-    print(f"  resume       : {docx_path.name}" + (f" + {pdf_path.name}" if pdf_path else ""))
-    print(f"  cover letter : cover_letter.docx + .txt")
-    print(f"  checklist    : checklist.md")
-    print(f"  ATS match    : {before:.1f} → {after:.1f}  "
-          f"({'+' if after >= before else ''}{after - before:.1f})")
-    print(f"  experience   : {len(resume.experience)} roles, "
-          f"{sum(len(r.bullets) for r in resume.experience)} bullets selected")
-    print(f"  skills order : {', '.join(resume.skills[:8])}{'…' if len(resume.skills) > 8 else ''}")
+    run_generate(
+        jd_text, url=args.url, company_override=args.company,
+        profile_path=args.profile, use_llm=(False if args.no_llm else None),
+        renderer=args.renderer, out_dir=args.out,
+    )
 
 
 def _resume_as_profile(resume, base_profile: dict) -> dict:

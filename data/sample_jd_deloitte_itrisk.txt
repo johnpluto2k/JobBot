@@ -1,0 +1,56 @@
+IT Risk & Assurance Analyst — Deloitte Risk & Financial Advisory
+
+Deloitte, Arlington, VA (Hybrid) — Full-time, Entry Level (0-2 years)
+
+About the team
+
+Deloitte's Risk & Financial Advisory practice helps clients manage the
+technology risks that come with digital transformation. Our IT Risk &
+Assurance team evaluates the design and operating effectiveness of clients'
+IT general controls, application controls, and data governance practices as
+part of financial statement audits and standalone risk advisory engagements.
+
+Responsibilities
+
+- Assist in the planning and execution of IT general controls (ITGC) testing
+  across access management, change management, and IT operations for
+  financial-statement-audit and advisory clients
+- Document control walkthroughs, identify control gaps, and draft findings
+  for review by senior team members
+- Support testing of automated application controls and interfaces between
+  financial systems (ERP environments such as SAP, Oracle, or Workday)
+- Analyze system-generated reports and use Excel/SQL to test data
+  completeness and accuracy for substantive procedures
+- Assist with SOC 1 / SOC 2 readiness assessments and control documentation
+- Communicate testing results and open items clearly to engagement teams and,
+  under supervision, to client IT stakeholders
+- Contribute to internal knowledge-sharing and stay current on emerging
+  technology risk topics (cloud controls, data privacy, AI governance)
+
+Qualifications
+
+Required:
+- Bachelor's degree in Accounting, Information Systems, Management
+  Information Systems, or a related field (or expected graduation within the
+  next 12 months)
+- 0-2 years of relevant experience (internships count)
+- Strong understanding of accounting/business processes and a foundational
+  understanding of IT general controls concepts
+- Proficiency in Microsoft Excel; exposure to SQL or another query language
+  is a plus
+- Strong written and verbal communication skills
+- Ability to travel as needed for client engagements
+
+Preferred:
+- Coursework or exposure to accounting information systems, database design,
+  or data analytics
+- Progress toward CPA eligibility (150-credit hour requirement) or interest
+  in pursuing licensure
+- Familiarity with a major ERP system (SAP, Oracle, Workday) or GRC tooling
+- Prior internship experience in audit, risk advisory, or a related field
+- Experience with Python or another scripting language for data analysis
+
+GPA requirement: 3.0 minimum, 3.3+ preferred
+
+Deloitte is an equal opportunity employer and values diversity of thought,
+background, and experience across our Risk & Financial Advisory practice.

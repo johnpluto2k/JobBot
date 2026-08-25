@@ -28,3 +28,10 @@ inputs/
 *.pid
 graphify-out/
 screenshots/
+
+# --- Personal source documents kept alongside the app (never committed) ------
+# John's own resumes / cover letters and the Resume Studio scratch folder.
+CoverLetter/
+Resumes/
+resume-studio/
+Resume_Tailoring_Framework.md

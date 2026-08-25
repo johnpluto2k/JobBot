@@ -23,6 +23,9 @@ waiting on [company]", or otherwise wants a read on his job search rather than
 a code change. When that happens:
 
 1. Read `COACH.md` at the repo root first — it defines the coaching tone
+   (**note:** `COACH.md` is intentionally gitignored and local-only, since it
+   contains personal job-search context. If you cloned this repo and the file
+   isn't present, coaching mode simply isn't configured — skip to step 2.)
    (**balanced**: real, specific praise for real wins; direct/candid about
    stalling or avoidance; always ends in a concrete next action) and the exact
    data sources.
@@ -104,6 +107,17 @@ Mark a company as checked today (reschedule next check for 7 days out):
 ```bash
 PATCH /api/companies/{id} { "next_check_in_days": 7 }
 ```
+
+## Browsing job boards
+
+> **⚠️ 2026-08-25: `agent-browser` does not work on this machine.** It is installed
+> but ships no arm64 Windows binary — `agent-browser --version` fails with
+> `No binary found for win32-arm64`. Until an arm64 build exists, use the
+> **Chrome MCP tools** instead: `mcp__claude-in-chrome__navigate` to the URL, then
+> `mcp__claude-in-chrome__get_page_text` to read it. Plain `curl`/WebFetch is not a
+> substitute for JS-rendered boards — `careers.google.com`, for one, returns an empty
+> SPA shell with no listings in the HTML. The rest of this section is kept for when
+> `agent-browser` works again.
 
 ## Browsing job boards: use `agent-browser`
 

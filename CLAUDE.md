@@ -29,7 +29,20 @@ a code change. When that happens:
    (**balanced**: real, specific praise for real wins; direct/candid about
    stalling or avoidance; always ends in a concrete next action) and the exact
    data sources.
-2. Pull a live snapshot before saying anything specific:
+2. Read `COACH_STATE.md` next — it is the **running memory of the coaching
+   conversation** so you can pick up mid-thread instead of making John restart.
+   It holds decisions already made (don't relitigate them), corrections to
+   things previously gotten wrong (don't repeat them), open threads, and a
+   dated log. It deliberately contains **no live metrics** — those come from
+   the snapshot in step 3, which is always current.
+   (Also gitignored and local-only; if it isn't present, skip it.)
+
+   **At the end of any substantive coaching session, update it**: refresh
+   "Open threads" and "Next actions", and append a dated line to the Log.
+   That upkeep is what makes the next session continuous. Keep it under
+   ~150 lines — compress old log entries rather than letting it sprawl.
+
+3. Pull a live snapshot before saying anything specific:
    ```bash
    python3 coach_snapshot.py .
    ```
@@ -44,7 +57,7 @@ a code change. When that happens:
    real dependencies should already be installed per `requirements.txt`, so
    the growth-plan part should work too — if it errors on a missing package,
    just tell John which `pip install` would fix it.
-3. Coach, don't report: answer what John actually asked using the 1-2 facts
+4. Coach, don't report: answer what John actually asked using the 1-2 facts
    from the snapshot that matter, not a dump of every number. Lead with
    anything time-sensitive (an interview coming up, an overdue follow-up,
    unhandled recruiter email that might be a live opportunity), give one

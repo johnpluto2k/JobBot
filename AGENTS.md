@@ -56,3 +56,18 @@ Any `Codex` session started in this folder — on this machine, independent of
 any other chat — reads this file automatically, so it has the same grounding
 and persona without needing anything scheduled or pre-connected. Just open a
 terminal in this folder, run `Codex`, and ask a coaching question.
+
+## Two traps worth knowing before you edit anything
+
+`CLAUDE.md` carries the fuller engineering notes (manual intake, the company
+posting watcher, the tracker API). Two of them bite hard enough to repeat here:
+
+- **One `data/` per repo, not per git worktree.** `data/` is gitignored, so it is
+  not shared between linked worktrees; `config._primary_checkout()` resolves it
+  to the primary checkout from anywhere. Before that fix each worktree kept a
+  private `job_bot.db` and `master_profile.json` and edits silently went nowhere.
+  If something looks like it "didn't save", check which `data/` was written.
+- **`applications.summary()` is the funnel and the coach trusts it.** Only rows
+  with `site IN ('email','tracker','ledger')` count as applications. Scraped and
+  watched postings use `site='<platform>'` precisely so a job John has not
+  applied to cannot inflate it. Don't widen that filter casually.

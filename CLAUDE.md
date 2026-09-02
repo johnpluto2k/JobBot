@@ -77,7 +77,11 @@ terminal in this folder, run `claude`, and ask a coaching question.
 
 As of 2026-07-09, the **manual intake flow** is the primary way to log jobs:
 
-**When John finds a job and applies:**
+**When John finds a job and applies**, the fastest path is the **Log a job**
+button on the Companies page of the dashboard (`LogJobForm`). Point him there
+rather than at the CLI unless he asks for it.
+
+Equivalently, from a terminal:
 
 1. Get the posting URL, company name, and job title
 2. Run (or submit via the API):
@@ -88,6 +92,17 @@ As of 2026-07-09, the **manual intake flow** is the primary way to log jobs:
    Statuses: applied, saved, rejected, offer (default: applied)
 
 3. The job appears in the company tracker and applications funnel immediately
+
+Two things to know before touching this path (both fixed 2026-09-02, don't
+reintroduce them):
+
+- Intake writes **`site='tracker'`**, not the portal name.
+  `applications.build_applications()` reads only
+  `WHERE site IN ('email','tracker','ledger')`, so writing the portal made every
+  manually logged job invisible to the funnel. The portal lives on the company
+  row and in the job's notes.
+- **Re-logging the same URL updates that row.** `jobs.url` is UNIQUE, so a bare
+  INSERT raised `IntegrityError` behind an opaque 500.
 
 **If integrating with a form/UI:**
 
@@ -120,6 +135,47 @@ Mark a company as checked today (reschedule next check for 7 days out):
 ```bash
 PATCH /api/companies/{id} { "next_check_in_days": 7 }
 ```
+
+## Company posting watcher (2026-09-02)
+
+`job_bot/watch.py` polls tracked companies for **new** openings so the pipeline
+fills itself. 88 of 203 companies have a verified public job-board endpoint,
+curated in `job_bot/watch_registry.py` (Greenhouse, Ashby, SmartRecruiters,
+Workday). Runs every 6 hours from the same APScheduler that drives the Gmail
+sync; `companies.next_check_due` is the work queue.
+
+```bash
+python -m job_bot.watch --dry-run    # what a pass would find, saving nothing
+python -m job_bot.watch              # poll everything currently due
+```
+```
+GET  /api/watch/status               # who's watched + last-pass results
+POST /api/watch/run                  # poll now
+```
+
+When working on it:
+
+- **Don't add companies by guessing ATS tokens.** Guessing produces confident
+  garbage — `costar` is an astrology app, `diligent` is a construction firm, and
+  SmartRecruiters returns HTTP 200 with `totalFound: 0` for tokens that don't
+  exist. Verify against the live endpoint and add to `watch_registry.py`.
+- Deloitte, EY, KPMG and Protiviti have **no public feed** (Phenom People /
+  Taleo / iCIMS / SuccessFactors). They stay on the manual check-in nudge.
+- Watcher rows are written with `site='<platform>'` so they can never reach the
+  applications funnel. Keep it that way — a posting John hasn't applied to is
+  not an application.
+- Email alerts are impossible: the OAuth scope is `gmail.readonly` and there is
+  no send path. Reporting goes to console, `JOB_BOT_WEBHOOK`, the dashboard and
+  the coach snapshot.
+
+## One `data/` per repo, not per worktree
+
+`data/` is gitignored, so it is **not** shared between git worktrees.
+`config._primary_checkout()` resolves it to the primary checkout from any
+worktree, which is why a profile edit made in one worktree is now visible to the
+running app. Before that fix each worktree kept a private `job_bot.db` and
+`master_profile.json`, and edits silently went nowhere. If something looks like
+it "didn't save", check which `data/` was actually written.
 
 ## Browsing job boards
 

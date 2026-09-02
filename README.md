@@ -4,12 +4,20 @@ Personal AI-powered career platform. Full roadmap lives in
 [`docs/job_application_system_master_plan.md`](docs/job_application_system_master_plan.md).
 
 **Status: ALL 9 PHASES + ALL 15 RECOMMENDATIONS + CAREER-OPS LAYER + TUNE-UPS COMPLETE ✅**
-*Last updated 2026-07-22: reconciled four long-diverged branches into `main` —
+*Last updated 2026-09-02: correctness pass + the [company posting
+watcher](#company-posting-watcher). The pipeline had not gained a posting since
+07-10 and the funnel was reporting seven "offers" that were all marketing email,
+so this round was mostly about making the numbers true and then giving the
+tracker something to do. Highlights: promotional mail no longer classifies as
+job offers and the unbounded `LIKE '%company%'` status UPDATE behind it is gone;
+`data/` is now shared across git worktrees (each one had been keeping a private
+database and profile); manually logged jobs actually reach the funnel and have a
+UI; 88 tracked companies are polled for new postings every 6 hours. Test suite
+30 → 60 passing. See [What's next](#whats-next).*
+*Previously 2026-07-22: reconciled four long-diverged branches into `main` —
 Google sign-in + autonomous Gmail sync (07-13), the company-first tracker
 refactor + Tech v4 résumé (07-09/07-10), and the sidebar-nav frontend redesign
-(07-16) had each been built independently and never merged. See
-[What's next](#whats-next) for the follow-up work that surfaced doing that
-(a company-name-normalization bug in the tracker, a couple of docs/test gaps).*
+(07-16) had each been built independently and never merged.*
 (~65 modules, incl. the three tune-up workstreams from
 [`docs/prompts/tuneups_adjustments.md`](docs/prompts/tuneups_adjustments.md):
 safer scraping, prompt-cached/right-sized LLM calls, RenderCV resume pipeline.)
@@ -75,9 +83,17 @@ tracker on its own:
 **What changed (2026-07-09):**
 
 The internal job-search engine has been retired. John now:
-1. **Finds jobs manually** on LinkedIn, Indeed, Jobright, Glassdoor, ZipRecruiter, company portals, Handshake, or UMD Smith School portals
-2. **Logs them with a command** (`python -m job_bot.intake <url> <company> <title> --portal linkedin`) or via the API (`POST /api/intake`)
+1. **Finds jobs manually** on LinkedIn, Indeed, Jobright, Glassdoor, ZipRecruiter, company portals, Handshake, or UMD Smith School portals — or lets the [posting watcher](#company-posting-watcher) find them
+2. **Logs them from the dashboard** — the **Log a job** button on the Companies page — or with a command (`python -m job_bot.intake <url> <company> <title> --portal linkedin`) or via the API (`POST /api/intake`)
 3. **Tracks companies** in a new `companies` table (career sites, ATS platforms, check-in schedule, target fields, tier)
+
+**Intake writes `site='tracker'` (fixed 2026-09-02).** It used to write the
+portal name (`linkedin`, `indeed`, …), but `applications.build_applications()`
+reads only `WHERE site IN ('email','tracker','ledger')` — so every job logged
+through what this README calls the primary way to log jobs was invisible to the
+funnel it was supposed to feed. The portal is preserved on the company row
+(`companies.portals`) and in the job's notes. Re-logging the same URL now
+updates that application instead of raising an `IntegrityError` behind a 500.
 
 **What stays the same:**
 - `applications.summary()` is the canonical funnel (offer/rejected/ghosted/interviewing/in_review counts) — identical output before/after
@@ -96,9 +112,67 @@ The internal job-search engine has been retired. John now:
 - `POST /api/intake` — log a job manually
 - `GET /api/companies[?due_for_check=true]` — list all companies or only those overdue for a check
 - `PATCH /api/companies/{id}` — mark a company checked today
+- `GET /api/watch/status` — which companies are polled, and what the last pass found
+- `POST /api/watch/run` — poll now instead of waiting for the 6-hour job
 
 **New CLI:**
 - `python -m job_bot.intake <url> <company> <title> [--portal <portal>] [--status <status>]`
+- `python -m job_bot.watch [--limit N] [--all] [--dry-run] [--anywhere]`
+
+## Company posting watcher
+
+`job_bot/watch.py` polls the companies in the tracker for **new** openings, so
+the pipeline fills itself instead of waiting for a manual browse. Added
+2026-09-02, after the `jobs` table went 54 days without a new row.
+
+```bash
+python -m job_bot.watch --dry-run     # see what a pass would find, save nothing
+python -m job_bot.watch               # poll everything currently due
+python -m job_bot.watch --limit 5     # bound the pass
+python -m job_bot.watch --anywhere    # skip the DMV location filter
+```
+
+**Coverage — 88 of 203 tracked companies**, every endpoint verified live and
+curated in `job_bot/watch_registry.py`:
+
+| Platform | Companies | Notes |
+| --- | --- | --- |
+| Workday | 51 | PwC, Booz Allen, Guidehouse, Capital One, Leidos, Northrop, GDIT, CACI, T. Rowe Price, Freddie Mac |
+| Greenhouse | 27 | Stripe, Databricks, Forvis Mazars, Appian, Robinhood, Expel, ID.me |
+| Ashby | 7 | Vanta, Drata, Secureframe, Numeric — the GRC lane, the most on-target group in the tracker |
+| SmartRecruiters | 6 | ServiceNow, Experian, Castro & Company |
+
+Workday's `wday/cxs` endpoint is public unauthenticated JSON — this README
+previously claimed otherwise (see [portal scan](#posting-quality-legitimacy-apply-gate-portal-scan-career-ops-layer)),
+which is why the Big 4 and govcon employers had been written off. **Deloitte, EY,
+KPMG and Protiviti genuinely have no public feed** (Phenom People / Taleo /
+iCIMS / SuccessFactors) and stay on the manual `next_check_due` nudge, as do the
+small regional CPA firms whose careers pages are bespoke.
+
+Design notes worth knowing before changing it:
+
+- **`jobs.url` is UNIQUE and inserts are `INSERT OR IGNORE`**, so "what's new" is
+  free. No content hashing, no seen-set: re-polling a board inserts nothing
+  unless a posting genuinely appeared.
+- **Rows land with `site='<platform>'`**, which `build_applications()` does not
+  read — a posting you have not applied to *cannot* leak into the funnel.
+- **`companies.next_check_due` is the work queue.** `due_for_check()` and
+  `mark_checked()` already spread companies over a 7-day cycle, so the watcher
+  schedules itself rather than adding a second scheduler concept.
+- **Location filtering** (which `portals.py` has none of) keeps DMV, remote and
+  unattributed-US roles. Markers are matched on word boundaries — a substring
+  check accepted "Mumbai Shivaji Park" as Virginia (shi-**va**-ji).
+- **Never raises.** One dead board must not end a pass; failures land in
+  `companies.last_watch_error` and show in `GET /api/watch/status`.
+
+Runs every 6 hours via APScheduler alongside the 15-minute Gmail sync, and
+triggers `notify.py` when a pass finds something. The Companies page shows a
+`watching · <platform>` pill per company and an "N new" badge after each pass.
+
+**Email alerts are deliberately not implemented.** The Google OAuth scope is
+`gmail.readonly` and `gmail_client.py` has no send path, so the watcher reports
+through the console, the optional `JOB_BOT_WEBHOOK` (Slack-compatible), the
+dashboard, and the coach snapshot.
 
 Phase 1 reads every resume / cover letter / project doc, extracts a structured
 `MasterProfile`, stores it in a local vector DB, and writes `master_profile.json`
@@ -109,6 +183,19 @@ platform, extracts required vs preferred keywords, and returns a ranked,
 actionable gap analysis.
 
 ## Quick start
+
+**Day to day, use the launcher.** `start-job-bot.cmd` (there's a desktop
+shortcut) brings the whole system up: it opens Orca, runs the backend in a
+**Job Bot Server** tab, starts a Claude Code **Career Coach** tab grounded in
+`COACH.md` plus a live snapshot, and opens the browser on
+<http://localhost:8000> once the server answers. Clicking it twice is safe — it
+tracks both tabs by Orca handle (Claude Code renames its own tab, so matching by
+title spawned duplicates) and reattaches instead of starting a second server.
+On each start it fast-forwards the checkout to the newest commit on `main` and
+rebuilds the UI only if the commit changed; it refuses to move backward or to
+touch a dirty working tree.
+
+To run it by hand instead:
 
 ```bash
 # 1. (optional) virtual env
@@ -135,7 +222,14 @@ streamlit run job_bot/dashboard.py                # → http://localhost:8501
 > changing the port) is in
 > [Phase 9 — the dashboard](#phase-9--the-dashboard-control-center--front-end).
 
-Output lands in `data/`:
+Output lands in `data/` — **one `data/` per repo, not per git worktree**
+(`config._primary_checkout()`, fixed 2026-09-02). `data/` is gitignored, so it
+was never shared between linked worktrees and each one quietly grew its own
+`job_bot.db` and `master_profile.json`. That is how a profile edit made in one
+worktree was never seen by the running app, and how another worktree ended up
+scoring résumés against a 122 KB near-empty database instead of the real one. A
+linked worktree's `.git` file names the primary checkout, so the data directory
+now resolves there from anywhere. `JOB_BOT_OUTPUT_DIR` still overrides.
 
 - `data/master_profile.json` — structured profile (source of truth)
 - `data/raw_text/*.txt` — extracted plain text per document
@@ -516,7 +610,9 @@ job_bot/
   growth.py          automated growth plan (certs / projects / resume variants)
 
   legitimacy.py      ghost-job / scam check + Playwright liveness verify
-  portals.py         direct career-portal scan (Greenhouse/Lever feeds)
+  portals.py         direct career-portal scan (Greenhouse/Lever feeds) — superseded by watch.py
+  watch.py           company posting watcher (Greenhouse/Ashby/SmartRecruiters/Workday, every 6h)
+  watch_registry.py  curated, live-verified job-board endpoints for 88 tracked companies
   negotiation.py     paste-ready salary-negotiation scripts
   transcript.py      UMD transcript parser -> education enrichment
   inbox.py           recruiting-email triage -> status + next action
@@ -528,7 +624,7 @@ job_bot/
   network_map.py     alumni/network coverage map across target companies
   linkedin_optimizer.py LinkedIn headline/About/skills audit vs ATS logic
   cover_ab.py        cover-letter A/B variants + response-rate learning
-  notify.py          fresh-job / deadline / follow-up alerts (+ Slack webhook)
+  notify.py          fresh-job / deadline / follow-up alerts (+ Slack webhook); fired by watch.py
   recording.py       interview-recording analysis (pacing, fillers, STAR)
   rejections.py      rejection logging + pattern analysis
   pipeline.py        Tracking & comms CLI (--inbox/--prep-plan/--thankyou/--brief/--rejections/--queue)
@@ -580,8 +676,14 @@ python -m job_bot.notify --dry-run                             # preview without
 
 Alerts on high-priority postings scraped within the last N hours, offer
 deadlines, and overdue follow-ups — deduped so each fires once. Add a
-Slack-compatible webhook (or set `JOB_BOT_WEBHOOK`) and schedule it (Task
-Scheduler / cron) to get pushed the moment a competitive role appears.
+Slack-compatible webhook (or set `JOB_BOT_WEBHOOK`) to get pushed the moment a
+competitive role appears.
+
+**Now wired in (2026-09-02).** This module was complete but orphaned — nothing
+imported it, the `notifications` table held five stale rows, and no alert had
+fired in months. A [watcher](#company-posting-watcher) pass that finds new
+postings triggers it, so no external scheduling is needed. Dedupe is on the job
+URL, so re-running can never double-ping.
 
 ### Interview recording analysis
 
@@ -663,11 +765,19 @@ python -m job_bot.legitimacy --file jd.txt --company "Acme" --days 45
 python -m job_bot.legitimacy --file jd.txt --verify-url "https://..."   # + Playwright liveness
 
 # Direct career-portal scan: pull fresh openings straight from company portals via
-# public Greenhouse/Lever feeds (fresher than aggregators); Workday/Taleo portals
-# with no public feed return a direct link + strategy. Extend via data/portals.json.
+# public Greenhouse/Lever feeds (fresher than aggregators). Extend via data/portals.json.
 python -m job_bot.portals             # preview matching roles + manual portals
 python -m job_bot.portals --save      # score, legitimacy-check, and add to the pipeline
 ```
+
+> **Superseded by [`job_bot/watch.py`](#company-posting-watcher) for anything
+> company-driven.** `portals.py` carries a hardcoded registry of a handful of
+> firms, applies no location filter (a live Stripe scan returns London, Dublin
+> and Singapore roles), and its comment claiming Workday and Taleo employers
+> have "no clean public feed" is wrong for Workday — the `wday/cxs` endpoint is
+> public JSON, which is what brings PwC, Booz Allen, Guidehouse and Capital One
+> into range. Its Greenhouse fetcher is reused by the watcher; prefer the
+> watcher, which is registry-driven, location-filtered and scheduled.
 
 The **apply gate** (`routing.recommend`) is gated to who you actually are, in
 order: **seniority** (a senior/manager role is 🎓 Above level — never "Apply" for an
@@ -761,50 +871,64 @@ for the full build log and Python 3.14 environment notes.
 
 ## What's next
 
-`main` was just reconciled from four branches that had diverged since
-2026-07-08 and never merged (`resume-adjuster`, `oogle-login-gmail-sync`,
-`overhaul/resume-and-filter`, plus `main`'s own two small fixes) — each had
-been developed in an isolated worktree with no one merging back. Verifying
-that merge (`npm run build`, `pytest`, an in-process API boot) surfaced real
-gaps that no session had caught yet:
+### Closed in the 2026-09-02 pass
 
-1. **Company-name normalization bug** (`job_bot/companies.py` /
-   `applications.canon()`) — "KPMG USA" and "kpmg" don't resolve to the same
-   company, so the same employer can end up as two tracker rows. 3 tests fail
-   on this today: `test_get_or_create_name_normalization`,
-   `test_log_job_appears_in_applications`, `test_log_job_name_normalization`
-   (`python -m pytest tests/test_companies.py tests/test_intake.py`). Needs a
-   design call on how aggressive the canonicalization should be (strip
-   `USA`/`Inc`/`LLC`? case-fold only?) before fixing — touches the
-   `applications.summary()` invariant, so re-verify that after.
-2. **`qualifications.py` is built but never wired in** — no call site anywhere
-   in the codebase, no test. Decide whether it plugs into `routing.recommend`
-   (the apply gate) or `ats_engine`, then wire it and add coverage.
-3. **Find Jobs → tracker handoff is manual** — the Find Jobs page still runs
-   a live JobSpy scrape (via `newgrad.py`), but nothing carries a result into
-   `intake.log_job()`; John has to re-type the URL/company/title into the
-   Companies page or CLI. A "log this job" button on each Find Jobs result
-   card would close the loop.
-4. **Spreadsheet re-import path is gone** — `intake.py --alumni --tracker`
-   (importing `inputs/Alumni Spreadsheet.xlsx` / `inputs/Internship & Job
-   Tracker.xlsx`) was removed when `intake.py` was repurposed for manual
-   per-job logging; only a one-time `jobs`-table migration
-   (`migrate_companies.py`) exists now. If John gets an updated tracker
-   spreadsheet there's currently no documented way to bring it in.
-5. **Decide on pushing.** All four branches are merged locally into `main`
-   only — nothing has been pushed to `origin`, and the stale branches
-   (`resume-adjuster`, `oogle-login-gmail-sync`, `overhaul/resume-and-filter`)
-   still exist locally and on `origin`. Once you're happy with `main`, decide
-   whether to push and whether to delete the merged branches (local + remote)
-   to stop this kind of silent divergence from recurring — worth also
-   agreeing on a habit (a standing branch check, or just merging back sooner)
-   so four months of independent work doesn't stack up unmerged again.
-6. **`docs/job_application_system_master_plan.md`** changed substantially on
-   `overhaul/resume-and-filter` (480 lines) and hasn't had a fresh read since
-   the merge — worth a skim for anything that still describes the retired
-   auto-recommend engine as current.
-7. Carried over from before this merge (still open): explore-mode for the
-   dashboard (surface adjacent/new role types, not just IT-audit-shaped
-   results — see prior memory `explore-mode-request`), optional per-company
-   alert cadence/keyword filters, and wiring Google Calendar directly into the
-   prep planner instead of the `.ics` fallback.
+- **Marketing email was being filed as job offers.** The funnel reported seven
+  offers — including EY and BDO — all of them Hilton Honors / Codecademy /
+  Coinbase / Amex / PerkSpot blasts. Three bugs compounded: no promotional-mail
+  noise rule, a bare `\boffer\b` signal pattern, and a `detect_company()` that
+  returned the first domain label (`h5.hilton.com` → "H5") and matched short
+  aliases like "EY" anywhere in a body. Those verdicts fed an unbounded
+  `UPDATE jobs SET status=? WHERE lower(company) LIKE '%name%'` — measured blast
+  radius on live data was 191 rows for `"IT"` and all 1,930 for a name
+  containing `%`. Status updates now match on `applications.canon()` by explicit
+  row id, capped at 10 rows per email.
+  `scripts/repair_inbox_misclassification.py` repairs existing data.
+- **Company-name normalization** — `companies.match_key()` resolves "KPMG",
+  "kpmg", "KPMG LLP" and "KPMG USA" to one row. Deliberately narrow: it strips
+  entity suffixes but not descriptive words, because `Accenture` vs `Accenture
+  Federal Services`, `Federal Reserve Bank` vs `Board`, and `Kearney` vs
+  `Kearney & Company` are each two real, separate organizations. No migration
+  needed — the loose key is computed at lookup time.
+- **Manual intake reaches the funnel**, and has a UI (**Log a job** on the
+  Companies page). It was CLI-only *and* writing a `site` value the funnel
+  ignores.
+- **`data/` is shared across worktrees** — see [Quick start](#quick-start).
+- **`deprecated/jobsearch.py` couldn't be imported at all** (relative imports
+  never fixed when it moved into the subpackage), which had silently taken down
+  `newgrad`, `GET /api/cycles`, `POST /api/search` and the whole Find Jobs tab.
+- **`notify.py` wired in**; **SQLite on WAL** with a 30s busy timeout, now that
+  two schedulers write while the API serves.
+- **Dashboard resilience** — one `/api/summary` failure no longer blanks all 13
+  pages, a failed refetch no longer discards the table you're reading, and both
+  long tables have search (plus sort on the pipeline). TypeScript `strict` is on.
+
+### Still open
+
+1. **`qualifications.py` is built but never wired in** — its only call sites are
+   inside `deprecated/jobsearch.py`. Decide whether it plugs into
+   `routing.recommend` (the apply gate) or `ats_engine`, then wire it and add
+   coverage.
+2. **Find Jobs → tracker handoff is manual** — the Find Jobs page runs a live
+   JobSpy scrape, but nothing carries a result into `intake.log_job()`. Now that
+   `LogJobForm` exists, a "log this job" button on each result card is a small
+   change that closes the loop.
+3. **Watcher coverage is 88 of 203 companies.** Roughly 20–30 more are
+   recoverable by reading a company's real careers URL and adding the token to
+   `watch_registry.py`; two known-valid Workday tenants still need their site
+   slug (`dnb.wd1`, `thinkbrg.wd5`). Deloitte, EY, KPMG and Protiviti are not
+   recoverable — no public feed exists.
+4. **Watcher keyword/seniority filters are global.** `DEFAULT_KEYWORDS` plus a
+   senior-title regex applies to every company, so "Staff Auditor" at a small
+   CPA firm is dropped as senior. Per-company keyword overrides would help.
+5. **Spreadsheet re-import path is gone** — `intake.py --alumni --tracker` was
+   removed when `intake.py` was repurposed for per-job logging. If John gets an
+   updated tracker spreadsheet there's no documented way to bring it in.
+6. **`docs/job_application_system_master_plan.md`** hasn't had a fresh read
+   since the four-branch merge — worth a skim for anything that still describes
+   the retired auto-recommend engine as current.
+7. Carried over: explore-mode for the dashboard (surface adjacent/new role
+   types, not just IT-audit-shaped results), mobile drawer accessibility (the
+   closed drawer stays focusable), retry buttons on error states, the dead
+   `api.score` / `api.tailor` client functions left from the ScoreTab merge, and
+   wiring Google Calendar directly into the prep planner instead of `.ics`.

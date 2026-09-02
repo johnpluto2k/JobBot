@@ -251,8 +251,21 @@ def _migrate(con: sqlite3.Connection) -> None:
 
 def connect() -> sqlite3.Connection:
     config.ensure_dirs()
-    con = sqlite3.connect(DB_PATH)
+    # Two background jobs now write on their own schedule - the 15-minute Gmail
+    # sync and the 6-hourly company watcher - while the API serves requests. With
+    # the default rollback journal and no busy timeout, a write that overlapped a
+    # sync raised "database is locked" immediately and surfaced as an uncaught 500.
+    # WAL lets readers run during a write; busy_timeout makes writers queue instead
+    # of failing. Measured before this change: a concurrent write blocked 5.6s and
+    # then raised.
+    con = sqlite3.connect(DB_PATH, timeout=30)
     con.row_factory = sqlite3.Row
+    try:
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("PRAGMA busy_timeout=30000")
+        con.execute("PRAGMA synchronous=NORMAL")
+    except sqlite3.Error:
+        pass  # a read-only or exotic filesystem - fall back to defaults
     con.executescript(SCHEMA)
     _migrate(con)
     return con

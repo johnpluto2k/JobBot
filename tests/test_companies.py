@@ -139,3 +139,40 @@ def test_update_with_lists():
     import json
     assert json.loads(result["portals"]) == ["Indeed", "LinkedIn"]
     assert json.loads(result["target_fields"]) == ["Finance / FP&A", "Internal Audit"]
+
+
+def test_match_key_treats_legal_suffixes_as_the_same_employer():
+    """KPMG / kpmg / KPMG LLP / KPMG USA are one firm, and used to be four rows.
+
+    canon() only rewrites a name when the WHOLE string is a known alias, so each
+    spelling produced a different name_normalized and therefore its own tracker
+    entry.
+    """
+    from job_bot.companies import match_key
+
+    for variant in ("kpmg", "KPMG LLP", "KPMG USA", "KPMG, LLP"):
+        assert match_key(variant) == match_key("KPMG"), variant
+    assert match_key("Ernst & Young LLP") == match_key("Ernst & Young")
+
+
+def test_match_key_keeps_genuinely_different_organizations_apart():
+    """The loose key must not over-merge. Every pair below is two real, separate
+    organizations that share a leading word."""
+    from job_bot.companies import match_key
+
+    for a, b in [("Accenture", "Accenture Federal Services"),
+                 ("Federal Reserve Bank", "Federal Reserve Board"),
+                 ("Kearney", "Kearney & Company"),
+                 ("CACI", "CACI International")]:
+        assert match_key(a) != match_key(b), f"{a} wrongly merged with {b}"
+
+
+def test_get_or_create_matches_across_spellings():
+    a, created_a = companies.get_or_create("KPMG LLP")
+    b, created_b = companies.get_or_create("kpmg")
+    assert created_a is True and created_b is False
+    assert a["id"] == b["id"]
+
+    other, created_other = companies.get_or_create("Kearney & Company")
+    assert created_other is True
+    assert other["id"] != a["id"]

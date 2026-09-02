@@ -91,6 +91,12 @@ def log_job(
 
         company, created = companies.get_or_create(company_disp, portals=[portal_lower])
         company_id = company["id"]
+        # Use the tracker row's name, not our own canon() of the raw input. When
+        # "KPMG USA" and "kpmg" resolve to the same company, both jobs must be
+        # filed under the one name that company row already carries - otherwise
+        # the jobs table grows two spellings for a single employer even though
+        # the tracker correctly holds one row.
+        company_disp = company.get("name") or company_disp
 
         # site='tracker', NOT the portal name.
         #

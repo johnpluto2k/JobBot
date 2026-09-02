@@ -7,10 +7,42 @@ including their career sites, ATS platforms, and check-in schedule.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime, timedelta
 from typing import Optional
 
 from .db import connect
+
+# Suffixes stripped when deciding whether two names are the SAME employer.
+#
+# Deliberately conservative. It covers legal-entity and country suffixes only -
+# "KPMG LLP", "KPMG USA" and "kpmg" are one firm. It does NOT strip descriptive
+# words, because in this tracker those distinguish real, separate organizations:
+#   Accenture            vs Accenture Federal Services
+#   Federal Reserve Bank vs Federal Reserve Board
+#   Kearney (consulting) vs Kearney & Company (a DMV federal-audit CPA firm)
+# Note "company" is absent for exactly that last reason.
+_ENTITY_SUFFIXES = {
+    "llp", "llc", "lllp", "lp", "plc", "pc", "pllc", "ltd", "limited",
+    "inc", "incorporated", "corp", "corporation",
+    "usa", "us", "na", "gmbh", "ag", "sa", "bv", "nv", "pty",
+}
+
+
+def match_key(name: str | None) -> str:
+    """A loose key for 'is this the same employer?' comparisons.
+
+    Lowercases, drops punctuation, and strips trailing legal/geographic suffixes.
+    Used only for lookup - `name_normalized` still stores the canonical display
+    form that the rest of the app (and the tests) expect.
+    """
+    if not name:
+        return ""
+    cleaned = re.sub(r"[^a-z0-9& ]+", " ", name.lower())
+    tokens = [t for t in cleaned.split() if t and t != "&"]
+    while tokens and tokens[-1] in _ENTITY_SUFFIXES:
+        tokens.pop()
+    return " ".join(tokens)
 
 
 def get_or_create(name: str, **kwargs) -> tuple[dict, bool]:
@@ -36,6 +68,17 @@ def get_or_create(name: str, **kwargs) -> tuple[dict, bool]:
 
         if row:
             return dict(row), False
+
+        # No exact hit. canon() only rewrites a name when the WHOLE string is a
+        # known alias, so "KPMG", "kpmg", "KPMG LLP" and "KPMG USA" produced four
+        # different keys and therefore four tracker rows for one firm.
+        # Fall back to a looser comparison that ignores case, punctuation and
+        # legal/geographic suffixes - see match_key() for why it stays this narrow.
+        key = match_key(name_norm)
+        if key:
+            for candidate in con.execute("SELECT * FROM companies").fetchall():
+                if match_key(candidate["name_normalized"]) == key:
+                    return dict(candidate), False
 
         # Create new with proper error handling for concurrent inserts
         portals_json = json.dumps(kwargs.get("portals", []))

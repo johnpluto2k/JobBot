@@ -43,8 +43,11 @@ def main() -> None:
             "SELECT received_at, company, category FROM tracked_emails WHERE handled=0 "
             "AND category IN ('interview_invite','assessment','offer','recruiter_reply') "
             "ORDER BY received_at DESC LIMIT 10")]
+        # "fresh" has to mean fresh — unbounded, this ranked July postings as
+        # today's opportunities. Mirrors the same query in job_bot/coach.py.
         out["fresh_high_priority_jobs"] = [dict(r) for r in con.execute(
             "SELECT title, company, priority FROM jobs WHERE status='new' "
+            "AND created_at > datetime('now','-14 days') "
             "ORDER BY priority DESC LIMIT 5")]
         con.close()
     except Exception as exc:

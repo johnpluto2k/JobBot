@@ -392,9 +392,21 @@ def run(limit: int | None = None, only_due: bool = True, save: bool = True,
 def run_if_due() -> dict | None:
     """Scheduler entry point. Swallows everything - APScheduler must never see a raise."""
     try:
-        return run(only_due=True, save=True)
+        out = run(only_due=True, save=True)
     except Exception:
         return None
+    # notify.py was complete but orphaned - nothing imported it, so the
+    # notifications table held 5 stale rows and no alert had fired in months. A
+    # pass that found new postings is exactly when it should speak up. It dedupes
+    # on the job URL itself, so re-running can never double-ping.
+    if out and out.get("new_postings"):
+        try:
+            from . import notify
+
+            notify.run()
+        except Exception:
+            pass
+    return out
 
 
 def main() -> int:

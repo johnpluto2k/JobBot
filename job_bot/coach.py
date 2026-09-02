@@ -78,7 +78,12 @@ def build_snapshot() -> dict:
             out["fresh_high_priority_jobs"] = [
                 dict(r)
                 for r in con.execute(
+                    # "fresh" has to mean fresh. Unbounded, this ranked postings
+                    # from July as today's opportunities - and COACH.md's whole
+                    # premise is that the coaching is only worth anything because
+                    # the numbers behind it are true.
                     "SELECT title, company, priority FROM jobs WHERE status='new' "
+                    "AND created_at > datetime('now','-14 days') "
                     "ORDER BY priority DESC LIMIT 5"
                 )
             ]

@@ -20,6 +20,12 @@
     "paths": { "@/*": ["./src/*"] },
 
     /* Linting */
+    /* strict was off, so strictNullChecks and noImplicitAny were both off - which
+       is how `parseJsonField(value: any): any[]` and a Summary type that declares
+       fields the API omits on a fresh install both type-checked clean. The
+       codebase already passes with it on, so it costs nothing and stops the next
+       one. */
+    "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,

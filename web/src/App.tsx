@@ -352,7 +352,20 @@ function Dashboard({ auth }: { auth: AuthStatus }) {
           </div>
 
           <div className="mt-8">
-            {summary.error ? <ErrorNote error={summary.error} /> : summary.loading || !s ? <SkeletonGrid /> : renderPage()}
+            {/* Only Overview reads `summary`. This gate used to wrap every page,
+                so a single /api/summary failure replaced Coach, Companies, Find
+                Jobs, LinkedIn, Interview Lab and the rest - none of which touch
+                summary - with "Couldn't reach the API", and every page showed a
+                4-KPI skeleton while it loaded regardless of its real shape. */}
+            {page !== 'overview' ? (
+              renderPage()
+            ) : summary.error ? (
+              <ErrorNote error={summary.error} />
+            ) : summary.loading || !s ? (
+              <SkeletonGrid />
+            ) : (
+              renderPage()
+            )}
           </div>
 
           <footer className="mt-12 border-t border-border pt-6 text-center text-xs text-muted-foreground">

@@ -113,7 +113,7 @@ export function CompanyTrackerTab() {
 
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
@@ -134,9 +134,19 @@ export function CompanyTrackerTab() {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-2xl font-bold">
-                {companies.data?.filter((c: Company) => c.tier === 'Big4' || c.tier === 'Big 4').length ?? 0}
+                {companies.data?.filter((c: Company) => c.watch_enabled).length ?? 0}
               </p>
-              <p className="text-xs text-muted-foreground">Big 4 firms</p>
+              <p className="text-xs text-muted-foreground">Watched automatically</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="hidden lg:block">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600">
+                {companies.data?.reduce((n: number, c: Company) => n + (c.last_watch_new ?? 0), 0) ?? 0}
+              </p>
+              <p className="text-xs text-muted-foreground">New roles last pass</p>
             </div>
           </CardContent>
         </Card>
@@ -166,8 +176,13 @@ export function CompanyTrackerTab() {
         </Button>
       </div>
 
+      {/* A failed refetch keeps the table on screen (useAsync retains the last
+          good data) and reports the failure above it, rather than replacing a
+          list the user was reading with a bare error card. */}
+      {companies.error && companies.data ? <ErrorNote error={companies.error} /> : null}
+
       {/* Companies Table */}
-      {companies.error ? (
+      {companies.error && !companies.data ? (
         <ErrorNote error={companies.error} />
       ) : (
         <Card>
@@ -217,7 +232,24 @@ export function CompanyTrackerTab() {
                             isOverdue ? 'bg-orange-500/5' : 'hover:bg-muted/50'
                           }`}
                         >
-                          <td className="px-4 py-3 font-medium">{company.name}</td>
+                          <td className="px-4 py-3 font-medium">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{company.name}</span>
+                              {/* Which companies the watcher actually polls, and
+                                  what the last pass turned up. Without this the
+                                  watcher is invisible unless you read the coach. */}
+                              {company.watch_enabled ? (
+                                <Badge variant="outline" className="text-[10px] font-normal">
+                                  watching{company.ats_platform ? ` · ${company.ats_platform}` : ''}
+                                </Badge>
+                              ) : null}
+                              {(company.last_watch_new ?? 0) > 0 ? (
+                                <Badge className="text-[10px]">
+                                  {company.last_watch_new} new
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </td>
                           <td className="px-4 py-3">
                             {company.tier ? (
                               <Badge variant="outline" className="text-xs">

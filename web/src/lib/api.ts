@@ -432,6 +432,12 @@ export interface Company {
   last_checked?: string
   next_check_due?: string
   created_at?: string
+  // Posting-watcher state (job_bot/watch.py). Companies without a public job
+  // board feed have watch_enabled unset and stay on the manual check-in nudge.
+  watch_enabled?: number
+  last_watch_at?: string | null
+  last_watch_new?: number | null
+  last_watch_error?: string | null
 }
 
 // --- Auth / Gmail sync ---------------------------------------------------------

@@ -269,7 +269,17 @@ def profile() -> dict:
 def summary() -> dict:
     """Reconciled funnel counts, rates, and field mix (single source of truth)."""
     if not DB_PATH.exists():
-        return {"total": 0, "by_status": {}, "by_field": {}}
+        # Return the FULL shape, not a three-key stub. The client's Summary type
+        # declares positions/ghosted/reached_interview/offers/rejected and the two
+        # rates as required, and nothing narrows them - so on a fresh install the
+        # Overview printed "undefined positions" and the funnel bars rendered
+        # width:"NaN%" with the literal text "NaN - NaN%".
+        return {
+            "total": 0, "positions": 0, "by_status": {}, "by_field": {},
+            "status_labels": applications.STATUS_LABEL,
+            "reached_interview": 0, "active": 0, "rejected": 0, "ghosted": 0,
+            "offers": 0, "response_rate": 0.0, "interview_rate": 0.0,
+        }
     s = applications.summary()
     # Attach human labels so the client doesn't hard-code the status vocabulary.
     s["status_labels"] = applications.STATUS_LABEL

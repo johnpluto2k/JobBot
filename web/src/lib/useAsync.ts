@@ -15,7 +15,13 @@ export function useAsync<T>(fetcher: () => Promise<T>, deps: unknown[] = []): As
     setState((s) => ({ ...s, loading: true, error: null }))
     fetcher()
       .then((data) => alive && setState({ data, loading: false, error: null }))
-      .catch((err) => alive && setState({ data: null, loading: false, error: String(err.message ?? err) }))
+      // Keep whatever data is already on screen when a refetch fails. This used
+      // to null it out, so one flaky request after a mutation - marking a company
+      // checked, dragging an offer weight slider - replaced a fully populated
+      // table the user was reading with a bare error card.
+      .catch((err) => alive && setState((s) => ({
+        data: s.data, loading: false, error: String(err.message ?? err),
+      })))
     return () => {
       alive = false
     }

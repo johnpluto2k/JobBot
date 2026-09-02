@@ -20,7 +20,7 @@ from __future__ import annotations
 import time
 from datetime import date, datetime
 
-from .db import connect
+from ..db import connect
 
 DEFAULT_SITES = ["indeed"]          # LinkedIn is opt-in (see module note)
 RESCRAPE_WINDOW_MIN = 60            # identical search within this window → skip
@@ -172,13 +172,13 @@ def score_and_route(rows: list[dict], profile: dict, score_each: bool = True,
 
     Also checks for certification/degree gaps and applies a penalty score.
     """
-    from .ats_engine import score
-    from .jd_parser import parse_jd
-    from .legitimacy import assess
-    from .applications import classify_field
-    from .routing import route
-    from .seniority import classify as sen_classify, too_senior
-    from .qualifications import check_qualifications
+    from ..ats_engine import score
+    from ..jd_parser import parse_jd
+    from ..legitimacy import assess
+    from ..applications import classify_field
+    from ..routing import route
+    from ..seniority import classify as sen_classify, too_senior
+    from ..qualifications import check_qualifications
 
     out: list[dict] = []
     for row in rows:
@@ -231,7 +231,7 @@ def save_jobs(rows: list[dict]) -> int:
             qual_certs = ",".join(r.get("qual_certs_missing", []))
             qual_degree = r.get("qual_degree_gap", "")
             try:
-                con.execute(
+                cur = con.execute(
                     "INSERT OR IGNORE INTO jobs (title, company, location, site, url, "
                     "date_posted, market_tier, tier_num, ats_score, priority, description, "
                     "legit_score, legit_grade, legit_flags, recommendation, seniority, "
@@ -246,7 +246,7 @@ def save_jobs(rows: list[dict]) -> int:
                 )
             except Exception:
                 # Fallback: save without qual fields (older schema)
-                con.execute(
+                cur = con.execute(
                     "INSERT OR IGNORE INTO jobs (title, company, location, site, url, "
                     "date_posted, market_tier, tier_num, ats_score, priority, description, "
                     "legit_score, legit_grade, legit_flags, recommendation, seniority) "
@@ -257,7 +257,11 @@ def save_jobs(rows: list[dict]) -> int:
                      r.get("legit_score"), r.get("legit_grade"), r.get("legit_flags"),
                      r.get("recommendation"), r.get("seniority")),
                 )
-            n += con.total_changes and 1 or 0
+            # `con.total_changes` is cumulative for the whole connection, so once a
+            # single row inserted it stayed truthy forever and every subsequent row
+            # counted as "saved" even when INSERT OR IGNORE ignored it as a dupe.
+            # The UI's "saved N to pipeline" was meaningless. Count the real row.
+            n += 1 if cur.rowcount == 1 else 0
         except Exception:
             fails += 1
     if fails:

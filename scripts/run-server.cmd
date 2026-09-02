@@ -8,17 +8,8 @@ echo   Dashboard: http://localhost:8000
 echo   Press Ctrl+C to stop.
 echo.
 
-REM ---- Update to the latest committed code on the 'main' branch --------------
-git diff --quiet 2>nul
-if errorlevel 1 goto :skip_update
-git diff --cached --quiet 2>nul
-if errorlevel 1 goto :skip_update
-echo   Updating to the latest code on 'main'...
-git checkout --detach main >nul 2>&1
-goto :check_build
-
-:skip_update
-echo   [!] Uncommitted changes in this folder - running them as-is, not updating.
+REM ---- Update to the newest code (fast-forward only; see the script) -------
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\sync-to-latest.ps1"
 
 REM ---- Rebuild the web UI only when the code has changed ---------------------
 :check_build

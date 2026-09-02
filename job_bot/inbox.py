@@ -16,8 +16,14 @@ from .skills_ontology import KNOWN_COMPANIES
 
 # category -> (subject/body signal patterns, default next action)
 SIGNALS: list[tuple[str, list[str], str]] = [
-    ("offer", [r"\boffer\b", r"pleased to offer", r"offer letter", r"offer (?:package|documents)",
-               r"extend an offer", r"join our team"],
+    # A bare r"\boffer\b" used to lead this list. It matched consumer marketing
+    # ("make the most of this 160K Bonus Points offer") and filed Hilton, Amex and
+    # Coinbase blasts as job offers, which then propagated into the funnel the
+    # coach treats as canonical. Every pattern here must carry employment context.
+    ("offer", [r"pleased to offer", r"offer letter", r"offer of employment",
+               r"employment offer", r"\bjob offer\b", r"formal offer", r"verbal offer",
+               r"contingent offer", r"offer (?:package|documents)",
+               r"extend(?:ing)? (?:you )?an offer"],
      "Review the offer; run the offer-comparison checklist and prep negotiation."),
     ("rejection", [r"\bunfortunately\b", r"not (?:be )?moving forward", r"decided to pursue other",
                    r"will not be progressing", r"other candidates", r"won'?t be moving forward",
@@ -108,6 +114,13 @@ NOISE_PATTERNS = [
     # employer-brand / PR blasts that match a company name but carry no application signal
     r"great place to work", r"is hiring", r"we'?re hiring", r"join our talent",
     r"talent (?:community|network) (?:update|newsletter)", r"upcoming (?:event|webinar)",
+    # Consumer marketing blasts - loyalty programs, retail promos, product upsells.
+    # These carry no application signal, and before the offer patterns above were
+    # tightened they were landing in the funnel as offers.
+    r"bonus points", r"reward points", r"cash ?back", r"\d+% off",
+    r"limited[- ]time", r"ends (?:today|tonight|soon)", r"shop now", r"free shipping",
+    r"save (?:up to )?\$?\d+", r"redeem your", r"exclusive (?:deal|savings)",
+    r"your (?:statement|balance) is ready", r"price drop", r"flash sale",
 ]
 
 
@@ -116,13 +129,22 @@ def is_noise(subject: str, body: str = "") -> bool:
     return any(re.search(p, t) for p in NOISE_PATTERNS)
 
 
-def detect_company(text: str, sender: str = "") -> str | None:
+# Aliases this short ("EY", "BDO", "CLA") collide with ordinary words and URL
+# fragments, so they only count when they appear in the subject or the sender -
+# never loose in a body. Hilton Honors mail used to register as an EY offer via
+# a stray two-letter match deep in the message text.
+SHORT_ALIAS_MAX = 3
+
+
+def detect_company(text: str, sender: str = "", subject: str = "") -> str | None:
     hay = f"{sender} {text}".lower()
+    strong = f"{sender} {subject}".lower() if subject else hay
     # 1. Known employer name in subject/body/sender — match longest alias first.
     #    Merge the ontology with local hints for names the ontology doesn't carry.
     aliases = {**COMPANY_HINTS, **KNOWN_COMPANIES}
     for key, disp in sorted(aliases.items(), key=lambda kv: -len(kv[0])):
-        if re.search(rf"(?<![a-z]){re.escape(key)}(?![a-z])", hay):
+        field = strong if len(key) <= SHORT_ALIAS_MAX else hay
+        if re.search(rf"(?<![a-z]){re.escape(key)}(?![a-z])", field):
             return disp
     # 2. Sender host maps cleanly to one employer (relay/ATS domains).
     host = sender.lower().split("@")[-1]
@@ -138,10 +160,16 @@ def detect_company(text: str, sender: str = "") -> str | None:
                 and "." not in local and len(local) >= 3):
             return local.replace("-", " ").title()
     # 4. Domain fallback (skip ATS infra, freemail, and generic mail relays).
-    if m := re.search(r"@([a-z0-9-]+)\.", sender.lower()):
-        dom = m.group(1)
-        if dom not in ATS_DOMAINS and dom not in FREEMAIL and dom not in DOMAIN_NOISE:
-            return dom.capitalize()
+    # Use the registrable domain, not the first label: "noreply@h5.hilton.com" is
+    # Hilton, not "H5", and "noreply@mail.coinbase.com" is Coinbase, not "Mail".
+    if "@" in sender:
+        host = sender.lower().split("@")[-1].strip().strip(">").rstrip(".")
+        labels = [x for x in host.split(".") if x]
+        if len(labels) >= 2:
+            dom = labels[-2]
+            if (dom not in ATS_DOMAINS and dom not in FREEMAIL and dom not in DOMAIN_NOISE
+                    and len(dom) >= 3 and not dom.isdigit()):
+                return dom.capitalize()
     return None
 
 
@@ -155,9 +183,32 @@ def classify_email(subject: str, body: str = "", sender: str = "") -> dict:
     return {
         "category": category,
         "action": action,
-        "company": detect_company(f"{subject} {body}", sender),
+        "company": detect_company(f"{subject} {body}", sender, subject=subject),
         "status_hint": CATEGORY_TO_STATUS.get(category),
     }
+
+
+# One email is a status update about one application. If a detected name somehow
+# still resolves to more rows than this, treat it as a misdetection and touch none.
+MAX_JOBS_PER_EMAIL = 10
+
+
+def _matching_jobs(con, company: str | None) -> list:
+    """Job rows whose company is the SAME EMPLOYER as `company`, most advanced first.
+
+    Compares on `applications.canon()` - the same normalization the funnel uses -
+    rather than a substring match, so "EY" can never select "Morgan Stanley".
+    """
+    if not company:
+        return []
+    from .applications import canon
+
+    # canon() returns None for blank/unparseable names, so coerce before comparing.
+    target = (canon(company) or "").strip().lower()
+    if not target:
+        return []
+    rows = con.execute("SELECT id, company, status FROM jobs ORDER BY priority DESC").fetchall()
+    return [r for r in rows if (canon(r["company"] or "") or "").strip().lower() == target]
 
 
 def record_email(received_at: str, sender: str, subject: str, body: str = "",
@@ -181,20 +232,29 @@ def record_email(received_at: str, sender: str, subject: str, body: str = "",
         (received_at, sender, subject, result["company"], result["category"], result["action"],
          gmail_id),
     )
-    # Look up the job's current stage before we advance it (used for rejection stage).
-    prior_status = None
-    if result["company"]:
-        row = con.execute("SELECT status FROM jobs WHERE lower(company) LIKE ? "
-                          "ORDER BY priority DESC LIMIT 1",
-                          (f"%{result['company'].lower()}%",)).fetchone()
-        prior_status = row["status"] if row else None
-    # Move the job forward in the pipeline if we can match the company.
-    if result["company"] and result["status_hint"]:
-        con.execute(
-            "UPDATE jobs SET status=? WHERE lower(company) LIKE ? AND status NOT IN "
-            "('offer','rejected')",
-            (result["status_hint"], f"%{result['company'].lower()}%"),
-        )
+    # Which job rows does this email actually refer to?
+    #
+    # This used to be an unbounded `WHERE lower(company) LIKE '%name%'` UPDATE.
+    # With no anchoring and no row cap, a Codecademy promo detected as "Itr"
+    # rewrote MITRE and Citrin Cooperman, and a Hilton blast detected as "EY"
+    # rewrote Morgan Stanley, Berkley, Eagle Eye, ICEYE and Kearney - 46 postings
+    # John never applied to were left marked 'offer', in place, unrecoverably.
+    # Match on the same canonical name the applications funnel uses, and refuse
+    # to touch anything if one email somehow still resolves to a wide blast.
+    matches = _matching_jobs(con, result["company"])
+    prior_status = matches[0]["status"] if matches else None
+
+    if result["status_hint"] and matches:
+        if len(matches) > MAX_JOBS_PER_EMAIL:
+            # Almost certainly a misdetection. Record the email, change nothing.
+            matches = []
+        else:
+            ids = [m["id"] for m in matches]
+            con.execute(
+                "UPDATE jobs SET status=? WHERE id IN (%s) AND status NOT IN "
+                "('offer','rejected')" % ",".join("?" * len(ids)),
+                (result["status_hint"], *ids),
+            )
     con.commit()
     con.close()
 

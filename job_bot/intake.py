@@ -78,30 +78,67 @@ def log_job(
 
     con = connect()
     try:
-        # Get or create company
+        # Re-logging a URL is a normal daily action - correcting a status, fixing a
+        # typo. jobs.url is UNIQUE and this used to be a bare INSERT, so the second
+        # call raised IntegrityError and surfaced as an opaque 500. Look first and
+        # treat a repeat as an update.
+        existing = con.execute("SELECT id FROM jobs WHERE url = ?", (url.strip(),)).fetchone()
+
+        # Get or create company. Record the portal on the company too - that is what
+        # the companies.portals column is for, and it keeps the provenance that used
+        # to live in jobs.site (see below).
         from . import companies
 
-        company, created = companies.get_or_create(company_disp)
+        company, created = companies.get_or_create(company_disp, portals=[portal_lower])
         company_id = company["id"]
 
-        # Create job entry with company_id and notes
+        # site='tracker', NOT the portal name.
+        #
+        # applications.build_applications() - the canonical funnel, and the number
+        # CLAUDE.md tells the coach to trust - only reads
+        #   WHERE site IN ('email','tracker','ledger')
+        # while this wrote site='linkedin'/'indeed'/etc. So every job logged through
+        # the documented manual-intake flow was invisible to the funnel: four
+        # status='applied' rows existed and none of them counted. The portal is kept
+        # on the company row above and in the job's notes.
         today = date.today().isoformat()
-        cur = con.execute("""
-            INSERT INTO jobs
-            (company_id, title, company, url, site, status, date_posted, notes, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (
-            company_id,
-            title.strip(),
-            company_disp,
-            url.strip(),
-            portal_lower,
-            status_lower,
-            today,
-            notes,
-        ))
-        con.commit()
-        job_id = cur.lastrowid
+        portal_note = f"[{portal_lower}]"
+        note_text = f"{portal_note} {notes}".strip() if notes else portal_note
+
+        try:
+            if existing:
+                con.execute("""
+                    UPDATE jobs
+                       SET company_id=?, title=?, company=?, site='tracker',
+                           status=?, date_posted=?, notes=?
+                     WHERE id=?
+                """, (company_id, title.strip(), company_disp, status_lower, today,
+                      note_text, existing["id"]))
+                job_id = existing["id"]
+            else:
+                cur = con.execute("""
+                    INSERT INTO jobs
+                    (company_id, title, company, url, site, status, date_posted, notes, created_at)
+                    VALUES (?, ?, ?, ?, 'tracker', ?, ?, ?, datetime('now'))
+                """, (
+                    company_id,
+                    title.strip(),
+                    company_disp,
+                    url.strip(),
+                    status_lower,
+                    today,
+                    note_text,
+                ))
+                job_id = cur.lastrowid
+            con.commit()
+        except Exception:
+            # get_or_create commits on its own connection, so a failure here used to
+            # leave a company row behind for a job that was never logged.
+            con.rollback()
+            if created:
+                con.execute("DELETE FROM companies WHERE id=?", (company_id,))
+                con.commit()
+            raise
 
         return {
             "id": job_id,
@@ -112,6 +149,7 @@ def log_job(
             "status": status_lower,
             "portal": portal_lower,
             "logged_at": today,
+            "updated": bool(existing),
         }
 
     finally:

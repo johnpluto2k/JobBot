@@ -116,6 +116,43 @@ def test_workday_dedupes_across_keyword_searches(monkeypatch):
     assert rows[0]["url"] == "https://x.wd1.myworkdayjobs.com/en-US/Careers/job/abc"
 
 
+def test_workday_reads_location_out_of_the_title_when_the_field_is_blank(monkeypatch):
+    """Regression: some tenants leave locationsText empty and append the location
+    to the title instead. Those postings looked location-less, and unknown
+    locations are kept, so one tenant flooded the pipeline with out-of-area roles.
+    """
+    payload = {"jobPostings": [
+        {"title": "Audit Analyst | Memphis, TN", "externalPath": "/job/a", "locationsText": ""},
+        {"title": "Audit Analyst | McLean, VA", "externalPath": "/job/b", "locationsText": ""},
+    ]}
+    monkeypatch.setattr(watch, "_requests", lambda: _FakeRequests(payload))
+    rows = watch._fetch_workday("x.wd1.myworkdayjobs.com", "x", "Careers", ["audit"])
+    kept = [r for r in rows if watch.location_ok(r["location"])]
+    assert [r["location"] for r in rows] == ["Memphis, TN", "McLean, VA"]
+    assert len(kept) == 1 and kept[0]["location"] == "McLean, VA"
+
+
+def test_title_suffix_that_is_not_a_location_is_ignored():
+    assert watch._location_from_title("Analyst | Data & Analytics") == ""
+    assert watch._location_from_title("Risk Analyst | Remote") == ""
+    assert watch._location_from_title("Audit Associate | McLean, VA") == "McLean, VA"
+
+
+def test_workday_applies_the_keyword_filter(monkeypatch):
+    """Regression: this fetcher trusted Workday's searchText and did not re-check
+    the title. Tenants that ignore searchText return their whole board - Raymond
+    James answered all four searches with the same 102 unrelated rows.
+    """
+    payload = {"jobPostings": [
+        {"title": "Internal Audit Advisor", "externalPath": "/job/a", "locationsText": "McLean, VA"},
+        {"title": "Trade Specialist - RJ Trust", "externalPath": "/job/b", "locationsText": "McLean, VA"},
+        {"title": "Sommelier", "externalPath": "/job/c", "locationsText": "McLean, VA"},
+    ]}
+    monkeypatch.setattr(watch, "_requests", lambda: _FakeRequests(payload))
+    rows = watch._fetch_workday("x.wd1.myworkdayjobs.com", "x", "Careers", ["audit"])
+    assert [r["title"] for r in rows] == ["Internal Audit Advisor"]
+
+
 def test_fetch_returns_empty_on_http_error(monkeypatch):
     monkeypatch.setattr(watch, "_requests", lambda: _FakeRequests({}, status=500))
     assert watch._fetch_ashby("vanta", ["risk"]) == []

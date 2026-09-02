@@ -191,7 +191,7 @@ def score_and_route(rows: list[dict], profile: dict, score_each: bool = True,
             job.location = job.location or row.get("location")
             ats = score(job, profile).overall_score
         if job is None:
-            from .jd_models import JobPosting
+            from ..jd_models import JobPosting
             job = JobPosting(title=row.get("title"), company=row.get("company"),
                              location=row.get("location"), source_url=row.get("url"),
                              raw_text=row.get("description", ""))

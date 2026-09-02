@@ -179,6 +179,24 @@ def _fetch_smartrecruiters(token: str, keywords: list[str]) -> list[dict]:
     return rows
 
 
+# Some Workday tenants leave locationsText empty and append the location to the
+# title instead ("Customer Account Associate | Memphis, TN"). Without this, those
+# postings look location-less, and location_ok() keeps unknown locations - so a
+# single tenant flooded the pipeline with 95 out-of-area roles.
+_TITLE_LOCATION_RE = _re.compile(r"\|\s*([^|]{2,40}?)\s*$")
+_CITY_STATE_RE = _re.compile(r",\s*[A-Z]{2}\b")
+
+
+def _location_from_title(title: str) -> str:
+    tail = _TITLE_LOCATION_RE.search(title or "")
+    if not tail:
+        return ""
+    candidate = tail.group(1).strip()
+    if _CITY_STATE_RE.search(candidate) or _DMV_RE.search(candidate) or _FOREIGN_RE.search(candidate):
+        return candidate
+    return ""
+
+
 def _fetch_workday(host: str, tenant: str, site: str, keywords: list[str],
                    max_pages: int = 5) -> list[dict]:
     """Workday's CXS endpoint - public JSON, no auth.
@@ -214,12 +232,17 @@ def _fetch_workday(host: str, tenant: str, site: str, keywords: list[str],
                 path = j.get("externalPath") or ""
                 if not path or path in seen:
                     continue
-                if not _entry_level(title):
+                # Re-check the keyword here rather than trusting searchText. Some
+                # tenants ignore it and return their entire board: Raymond James
+                # answered all four searches with the same 102 rows, which then
+                # arrived as 95 unrelated postings. The other three fetchers all
+                # filter on the title, so this keeps them consistent.
+                if not _match(title, keywords) or not _entry_level(title):
                     continue
                 seen.add(path)
                 rows.append({
                     "title": title,
-                    "location": j.get("locationsText") or "",
+                    "location": j.get("locationsText") or _location_from_title(title),
                     "url": f"https://{host}/en-US/{site}{path}",
                     "site": "workday", "date_posted": "", "description": "",
                 })
@@ -271,13 +294,32 @@ def watch_company(company: dict, keywords: list[str] | None = None,
     try:
         from .deprecated.jobsearch import save_jobs, score_and_route
 
-        scored = score_and_route(rows, drop_senior=True)
+        # score_and_route needs the master profile to compute the ATS score.
+        # _profile() caches it for the process - see the note there.
+        scored = score_and_route(rows, _profile(), drop_senior=True)
         result["new"] = save_jobs(scored)
         _attach_company_id(company.get("id"), [r.get("url") for r in scored])
     except Exception as exc:  # noqa: BLE001
         result["error"] = f"save failed: {type(exc).__name__}: {exc}"
     result["rows"] = rows
     return result
+
+
+_PROFILE_CACHE: dict | None = None
+
+
+def _profile() -> dict:
+    """Master profile for ATS scoring, loaded once per process.
+
+    load_profile() re-reads and re-parses master_profile.json on every call, and a
+    full pass scores hundreds of postings across dozens of companies.
+    """
+    global _PROFILE_CACHE
+    if _PROFILE_CACHE is None:
+        from .ats_engine import load_profile
+
+        _PROFILE_CACHE = load_profile(None)
+    return _PROFILE_CACHE
 
 
 def _attach_company_id(company_id: int | None, urls: list[str]) -> None:

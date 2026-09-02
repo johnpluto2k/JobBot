@@ -4,8 +4,32 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ErrorNote } from '@/components/ErrorNote'
+import { LogJobForm } from '@/components/LogJobForm'
 import { api, type Company } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
+
+// The API stores date-only strings ("2026-09-02"). `new Date("2026-09-02")` parses
+// as UTC midnight, which is the previous evening anywhere west of UTC - so every
+// date here rendered one day early for a US user. Anchor to local midnight instead.
+function localDate(iso: string): Date {
+  return new Date(`${iso}T00:00:00`)
+}
+
+function formatDate(iso: string | null | undefined, fallback: string): string {
+  return iso ? localDate(iso).toLocaleDateString() : fallback
+}
+
+/** Local midnight today - the reference point for every overdue comparison. */
+function startOfToday(): Date {
+  const t = new Date()
+  t.setHours(0, 0, 0, 0)
+  return t
+}
+
+function isDue(nextCheckDue: string | null | undefined): boolean {
+  if (!nextCheckDue) return true
+  return localDate(nextCheckDue) <= startOfToday()
+}
 
 // Helper to parse JSON strings from database
 function parseJsonField(value: any): any[] {
@@ -31,29 +55,16 @@ export function CompanyTrackerTab() {
   const companies = useAsync(api.companies, [refreshKey])
 
   const displayCompanies = companies.data
-    ?.filter((c: Company) => {
-      if (filter === 'all') return true
-      if (!c.next_check_due) return true
-      const dueDate = new Date(c.next_check_due)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      return dueDate <= today
-    })
+    ?.filter((c: Company) => filter === 'all' || isDue(c.next_check_due))
     .sort((a: Company, b: Company) => {
       // Sort overdue first, then by due date
-      const aOverdue = !a.next_check_due || new Date(a.next_check_due) <= new Date()
-      const bOverdue = !b.next_check_due || new Date(b.next_check_due) <= new Date()
+      const aOverdue = isDue(a.next_check_due)
+      const bOverdue = isDue(b.next_check_due)
       if (aOverdue !== bOverdue) return aOverdue ? -1 : 1
       return (a.next_check_due || '').localeCompare(b.next_check_due || '')
     })
 
-  const overdueCount = companies.data?.filter((c: Company) => {
-    if (!c.next_check_due) return true
-    const dueDate = new Date(c.next_check_due)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return dueDate <= today
-  }).length ?? 0
+  const overdueCount = companies.data?.filter((c: Company) => isDue(c.next_check_due)).length ?? 0
 
   async function markChecked(companyId: number) {
     setChecking((prev) => new Set(prev).add(companyId))
@@ -68,6 +79,11 @@ export function CompanyTrackerTab() {
         const statusText = response.statusText || `HTTP ${response.status}`
         throw new Error(`Failed to mark checked: ${statusText}`)
       }
+      // The endpoint answers "company not found" with HTTP 200 and an {error}
+      // body, so response.ok alone reported success for a write that never
+      // happened - the row stayed overdue and the user just clicked again.
+      const body = await response.json().catch(() => null)
+      if (body?.error) throw new Error(body.error)
       // Trigger refresh
       setRefreshKey((prev) => prev + 1)
     } catch (err) {
@@ -91,6 +107,10 @@ export function CompanyTrackerTab() {
     <div className="space-y-6">
       {/* Error Message */}
       {error && <ErrorNote error={error} />}
+
+      {/* Logging a job you just applied to was CLI-only until now. */}
+      <LogJobForm onLogged={() => setRefreshKey((prev) => prev + 1)} />
+
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
@@ -181,9 +201,12 @@ export function CompanyTrackerTab() {
                     </tr>
                   ) : (
                     (displayCompanies ?? []).map((company: Company) => {
-                      const isOverdue =
-                        !company.next_check_due ||
-                        new Date(company.next_check_due) <= new Date()
+                      // Uses the same isDue() as the KPI count and the filter. These
+                      // were three separate comparisons, and the row one compared
+                      // against `new Date()` (now) rather than local midnight - so
+                      // after 8pm a company due TOMORROW rendered orange with an
+                      // alert icon while the Overdue tab said nothing was due.
+                      const isOverdue = isDue(company.next_check_due)
                       // Cache parsed JSON fields to avoid re-parsing in each render
                       const portals = parseJsonField(company.portals)
                       const targetFields = parseJsonField(company.target_fields)
@@ -233,9 +256,7 @@ export function CompanyTrackerTab() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {company.last_checked
-                              ? new Date(company.last_checked).toLocaleDateString()
-                              : 'Never'}
+                            {formatDate(company.last_checked, 'Never')}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -245,9 +266,7 @@ export function CompanyTrackerTab() {
                                 </span>
                               )}
                               <span className={isOverdue ? 'font-semibold text-orange-600' : 'text-xs text-muted-foreground'}>
-                                {company.next_check_due
-                                  ? new Date(company.next_check_due).toLocaleDateString()
-                                  : 'Not set'}
+                                {formatDate(company.next_check_due, 'Not set')}
                               </span>
                             </div>
                           </td>

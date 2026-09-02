@@ -10,6 +10,16 @@ function fmtDate(iso: string | null) {
 }
 
 export function ApplicationsTable({ apps }: { apps: Application[] }) {
+  // Zero applications used to render a bare header row under the text
+  // "0 companies". JobsTable already handles this case; match it.
+  if (!apps.length) {
+    return (
+      <Card className="p-10 text-center text-sm text-muted-foreground">
+        No applications logged yet. Use <span className="font-medium">Log a job</span> on
+        the Companies page each time you apply — this funnel is what the coach reads.
+      </Card>
+    )
+  }
   return (
     <Card className="overflow-hidden p-0">
       <Table>

@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ErrorNote } from '@/components/ErrorNote'
 import { LogJobForm } from '@/components/LogJobForm'
+import { TableToolbar } from '@/components/TableToolbar'
+import { matches } from '@/lib/search'
 import { api, type Company } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
@@ -48,6 +50,7 @@ function parseJsonField(value: any): any[] {
 export function CompanyTrackerTab() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [filter, setFilter] = useState<'all' | 'overdue'>('all')
+  const [query, setQuery] = useState('')
   const [checking, setChecking] = useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
@@ -56,6 +59,9 @@ export function CompanyTrackerTab() {
 
   const displayCompanies = companies.data
     ?.filter((c: Company) => filter === 'all' || isDue(c.next_check_due))
+    .filter((c: Company) => matches(
+      [c.name, c.tier, c.notes, String(c.ats_platform ?? ''),
+       ...parseJsonField(c.target_fields), ...parseJsonField(c.portals)], query))
     .sort((a: Company, b: Company) => {
       // Sort overdue first, then by due date
       const aOverdue = isDue(a.next_check_due)
@@ -151,6 +157,14 @@ export function CompanyTrackerTab() {
           </CardContent>
         </Card>
       </div>
+
+      <TableToolbar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search companies, tiers, target fields..."
+        shown={displayCompanies?.length ?? 0}
+        total={companies.data?.length ?? 0}
+      />
 
       {/* Filter Tabs */}
       <div className="flex gap-2">

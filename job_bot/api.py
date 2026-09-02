@@ -538,6 +538,46 @@ def tailor_docx(req: ScoreRequest) -> dict:
         return {"error": str(exc)}
 
 
+class BulletsRequest(BaseModel):
+    jd: str
+    resume_text: str | None = None
+    url: str | None = None
+    company: str | None = None
+    rewrite_cuts: bool = False
+
+
+@app.post("/api/bullets")
+def tailor_bullets_api(req: BulletsRequest) -> dict:
+    """Tailored bullets for a JD, with no document rendered.
+
+    The counterpart to `/api/studio/generate`: same parse + rank + rewrite
+    engine, but it stops at the words. Use it when the résumé is formatted by
+    hand and only the bullet text needs to change. `resume_text` is the résumé
+    you actually edit; omit it to fall back to master_profile.json.
+    """
+    from .bullets import tailor_bullets, to_markdown
+    from .jd_parser import parse_jd
+
+    try:
+        job = parse_jd(req.jd, url=req.url or None, use_llm=config.has_llm())
+        if req.company:
+            job.company = req.company
+
+        wb = tailor_bullets(job, resume_text=req.resume_text,
+                            use_llm=config.has_llm(),
+                            rewrite_cuts=req.rewrite_cuts)
+        return {
+            "job": {"title": job.title, "company": job.company,
+                    "role_type": job.role_type,
+                    "required_keywords": job.required_keywords,
+                    "preferred_keywords": job.preferred_keywords},
+            **wb.as_dict(),
+            "markdown": to_markdown(wb, job),
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.get("/api/cycles")
 def cycles() -> dict:
     """Hiring cycles (derived from the profile's grad date) + career tracks,

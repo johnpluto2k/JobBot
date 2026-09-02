@@ -46,13 +46,26 @@ def _read_jd(args) -> str:
     raise SystemExit("Provide a JD via --file PATH, --text \"...\", or piped stdin.")
 
 
+# docs/resume_track_contract.md, Acceptance Criteria. A tick mark next to a
+# score that misses the gate is the generator lying to itself, so the checklist
+# reports against the gate rather than against "better than before".
+ATS_GATE = 85.0
+
+
+def _ats_verdict(after: float) -> str:
+    if after >= ATS_GATE:
+        return f"✅ meets the {ATS_GATE:.0f} gate"
+    return f"❌ BELOW the {ATS_GATE:.0f} gate (short by {ATS_GATE - after:.0f})"
+
+
 def _checklist(job, app_dir: Path, before: float, after: float) -> str:
     return f"""# Application checklist — {job.title or 'role'} @ {job.company or ''}
 
-- [ ] Review tailored resume: `{app_dir / 'resume.pdf'}`
+- [ ] Review + SUBMIT this file: `{app_dir / 'resume.docx'}`  (business track ships .docx)
+- [ ] `resume.pdf` is a preview only — it is a separate render and will not line-break identically
 - [ ] Review cover letter: `{app_dir / 'cover_letter.docx'}`
 - [ ] Confirm one-page length and no typos
-- [ ] ATS match: {before:.0f} → {after:.0f} after tailoring{' ✅' if after >= before else ''}
+- [ ] ATS match: {before:.0f} → {after:.0f} after tailoring — {_ats_verdict(after)}
 - [ ] Verify required keywords are genuinely supported (never fabricate)
 - [ ] Detected ATS: {job.ats_platform} — format accordingly
 - [ ] Run `python -m job_bot.decide --file <jd>` for the network/cold-apply call
@@ -104,8 +117,21 @@ def run_generate(jd_text: str, *, url: str | None = None,
           + ("  (via --renderer)" if renderer else "  (auto)"))
     resume = tailor_resume(profile, job, use_llm=use_llm)
 
-    # after: tailored resume text vs JD (re-score using a profile-shaped view)
-    tailored_profile = _resume_as_profile(resume, profile)
+    # Fit to one page ONCE, here, and score that. The renderers used to do their
+    # own trimming after the score was computed, so the printed "after" number
+    # described a fuller resume than the one in the folder. Whatever we score
+    # has to be exactly what ships.
+    from . import resume_fit
+    shipped, trimmed = resume_fit.trim_to_fit(resume)
+    if chosen_renderer != "rendercv":
+        # The business/VMH template has no Summary section (see
+        # docs/resume_track_contract.md), so the scored view must not have one
+        # either — crediting a paragraph that isn't on the page is how a score
+        # stops meaning anything.
+        shipped.summary = None
+
+    # after: shipped resume text vs JD (re-score using a profile-shaped view)
+    tailored_profile = _resume_as_profile(shipped, profile)
     after_report = score(job, tailored_profile)
     after = after_report.overall_score
 
@@ -113,18 +139,18 @@ def run_generate(jd_text: str, *, url: str | None = None,
     app_dir = Path(out_dir) if out_dir else config.OUTPUT_DIR / "applications" / slug
     app_dir.mkdir(parents=True, exist_ok=True)
 
-    docx_path = render_docx(resume, app_dir / "resume.docx")
+    docx_path = render_docx(shipped, app_dir / "resume.docx", prefitted=True)
     pdf_path = None
     if chosen_renderer == "rendercv":
         try:
             from .render_rendercv import render_rendercv
-            pdf_path = render_rendercv(resume, app_dir / "resume.pdf")
+            pdf_path = render_rendercv(shipped, app_dir / "resume.pdf")
             print(f"  · rendered via RenderCV (source: {app_dir / 'resume.yaml'})")
         except Exception as exc:
             print(f"  ! RenderCV render failed ({exc}); falling back to reportlab PDF")
     if pdf_path is None:
         try:
-            pdf_path = render_pdf(resume, app_dir / "resume.pdf")
+            pdf_path = render_pdf(shipped, app_dir / "resume.pdf", prefitted=True)
         except Exception as exc:
             print(f"  ! PDF render failed ({exc}); DOCX still produced")
 
@@ -148,6 +174,10 @@ def run_generate(jd_text: str, *, url: str | None = None,
     print(f"  experience   : {len(resume.experience)} roles, "
           f"{sum(len(r.bullets) for r in resume.experience)} bullets selected")
     print(f"  skills order : {', '.join(resume.skills[:8])}{'…' if len(resume.skills) > 8 else ''}")
+    if trimmed:
+        print(f"  trimmed to fit one page ({len(trimmed)} cuts, weakest first):")
+        for item in trimmed:
+            print(f"     - {item}")
 
     return {
         "job": job,
@@ -157,11 +187,12 @@ def run_generate(jd_text: str, *, url: str | None = None,
         "after": after,
         "before_report": before_report,
         "after_report": after_report,
-        "resume": resume,
+        "resume": shipped,
         "app_dir": app_dir,
         "slug": slug,
         "docx_path": docx_path,
         "pdf_path": pdf_path,
+        "trimmed": trimmed,
     }
 
 
@@ -196,26 +227,80 @@ def main() -> None:
 
 def _resume_as_profile(resume, base_profile: dict) -> dict:
     """Shape a tailored resume back into the profile dict structure so the ATS
-    engine can re-score it (keyword presence + quantification)."""
+    engine can re-score it (keyword presence + quantification).
+
+    The `quantified` flag matters: it is 15% of the score. The master profile
+    computes it with richer logic than a regex (see `extract.py`), so carry the
+    stored value through wherever the bullet text still matches, and fall back
+    to a regex only for LLM-rewritten text. Project bullets used to omit the key
+    entirely, which counted every one of them as unquantified and was single-
+    handedly responsible for tailoring *lowering* the score."""
+    stored = _quantified_index(base_profile)
+
+    def quantified(text: str) -> bool:
+        hit = stored.get(_norm_bullet(text))
+        if hit is not None:
+            return hit
+        # "6+ company types" is a metric; the old r"\d{2,}" missed every
+        # single-digit one.
+        return bool(re.search(r"[%$]|\d", text))
+
+    def bullets(items):
+        return [{"text": b, "quantified": quantified(b), "keyword_tags": []}
+                for b in items]
+
     def roles(group):
         return [{
             "role": r.role, "organization": r.organization,
-            "bullets": [{"text": b, "quantified": bool(re.search(r"[%$]|\d{2,}", b)),
-                         "keyword_tags": []} for b in r.bullets],
+            "bullets": bullets(r.bullets),
         } for r in group]
+
+    src_projects = {(p.get("name") or ""): p for p in base_profile.get("projects", [])}
+
+    def project(p):
+        # `organization` is "<name> — <tech, tech, ...>"; recover the source
+        # entry so description/technologies survive the round-trip.
+        name = (p.organization or "").split(" — ")[0]
+        src = src_projects.get(name, {})
+        return {"name": name or p.organization,
+                "description": src.get("description", ""),
+                "technologies": src.get("technologies", []),
+                "bullets": bullets(p.bullets)}
 
     return {
         "personal": base_profile.get("personal", {}),
-        "education": base_profile.get("education", []),
+        # Education comes off the *shipped* resume, not the master profile:
+        # coursework gets trimmed to fit the page and the score should only
+        # credit what a reader can actually see.
+        "education": [{"school": e.school, "degree": e.degree,
+                       "gpa": e.gpa, "graduation_date": e.graduation_date,
+                       "relevant_coursework": list(e.coursework)}
+                      for e in resume.education],
+        "summary": resume.summary or "",
         "experience": roles(resume.experience),
         "leadership": roles(resume.leadership),
-        "projects": [{"name": p.organization, "description": "",
-                      "technologies": [], "bullets": [{"text": b} for b in p.bullets]}
-                     for p in resume.projects],
-        "skills": [{"category": "all", "skills": resume.skills}],
+        "projects": [project(p) for p in resume.projects],
+        "skills": ([{"category": g.label, "skills": g.skills}
+                    for g in resume.skill_groups]
+                   or [{"category": "all", "skills": resume.skills}]),
         "certifications": resume.certifications,
         "targets": base_profile.get("targets", {}),
     }
+
+
+def _norm_bullet(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
+
+
+def _quantified_index(profile: dict) -> dict:
+    """text -> stored `quantified` flag, for every bullet in the master profile."""
+    out: dict[str, bool] = {}
+    for key in ("experience", "leadership", "projects"):
+        for entry in profile.get(key, []):
+            for b in entry.get("bullets", []):
+                if isinstance(b, dict) and b.get("text"):
+                    out[_norm_bullet(b["text"])] = bool(b.get("quantified"))
+    return out
 
 
 if __name__ == "__main__":

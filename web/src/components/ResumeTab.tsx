@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
-import { Download, ExternalLink, Link2, Loader2, Printer, Sparkles } from 'lucide-react'
+import { Check, Copy, Download, ExternalLink, Link2, Loader2, Printer, Scissors, Sparkles, Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +10,10 @@ import { ErrorNote } from '@/components/ErrorNote'
 import {
   api,
   studioFileUrl,
+  type BulletFit,
+  type BulletsResult,
+  type BulletVerdict,
+  type TailoredBullet,
   type StudioGenerateResult,
   type StudioHistoryRow,
   type StudioRender,
@@ -83,26 +87,295 @@ function LinkToApplicationButton({
 }
 
 export function ResumeTab() {
-  const [activeTab, setActiveTab] = useState<'generate' | 'code'>('generate')
+  const [activeTab, setActiveTab] = useState<'bullets' | 'generate' | 'code'>('bullets')
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button variant={activeTab === 'bullets' ? 'default' : 'outline'} onClick={() => setActiveTab('bullets')}>
+          Tailored bullets
+        </Button>
         <Button variant={activeTab === 'generate' ? 'default' : 'outline'} onClick={() => setActiveTab('generate')}>
-          Generate from JD
+          Generate full resume
         </Button>
         <Button variant={activeTab === 'code' ? 'default' : 'outline'} onClick={() => setActiveTab('code')}>
           Edit as code
         </Button>
       </div>
 
-      {activeTab === 'generate' ? <GenerateFromJdTab /> : <EditAsCodeTab />}
+      {activeTab === 'bullets' ? (
+        <TailoredBulletsTab />
+      ) : activeTab === 'generate' ? (
+        <GenerateFromJdTab />
+      ) : (
+        <EditAsCodeTab />
+      )}
     </div>
   )
 }
 
 // =================================================================================
-// Tab 1 — Generate from JD
+// Tab 1 — Tailored bullets (nothing is rendered; you format the résumé yourself)
+// =================================================================================
+
+const VERDICT_META: Record<BulletVerdict, { label: string; variant: 'green' | 'slate' | 'amber' }> = {
+  lead: { label: 'Lead with this', variant: 'green' },
+  keep: { label: 'Keep', variant: 'slate' },
+  cut: { label: 'Consider cutting', variant: 'amber' },
+}
+
+const SECTION_LABELS: Record<TailoredBullet['section'], string> = {
+  experience: 'Experience',
+  leadership: 'Leadership',
+  projects: 'Projects',
+}
+
+/** Copy-to-clipboard button that confirms in place for a moment. */
+function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1400)
+    } catch {
+      /* clipboard blocked (insecure origin or denied) — the text stays selectable */
+    }
+  }
+
+  return (
+    <Button variant="ghost" size="sm" onClick={copy} title={`Copy: ${text.slice(0, 60)}`}>
+      {copied ? <Check style={{ color: 'var(--status-green)' }} /> : <Copy />} {copied ? 'Copied' : label}
+    </Button>
+  )
+}
+
+/** How full the bullet's last line is, as a bar plus the actionable number.
+ *  A ragged bullet wastes a whole line of page for a few words; a short one is
+ *  just room the writer can still use. */
+function FillMeter({ fit }: { fit: BulletFit }) {
+  const pct = Math.round(fit.last_fill * 100)
+  const color =
+    fit.verdict === 'full'
+      ? 'var(--status-green)'
+      : fit.verdict === 'ragged'
+        ? 'var(--status-amber)'
+        : 'var(--status-slate)'
+  const note =
+    fit.verdict === 'ragged'
+      ? `line ${fit.lines} only ${pct}% full — cut ~${fit.trim_chars} chars to save a line`
+      : fit.verdict === 'short'
+        ? `${pct}% of the line — room for ~${fit.add_chars} more chars`
+        : `fills the line (${pct}%)`
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] text-muted-foreground tabular-nums">
+        {fit.lines} {fit.lines === 1 ? 'line' : 'lines'}
+      </span>
+      <span
+        className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full"
+        style={{ background: 'var(--border)' }}
+        title={note}
+        aria-label={note}
+      >
+        <span
+          className="block h-full rounded-full"
+          style={{ width: `${Math.min(100, pct)}%`, background: color }}
+        />
+      </span>
+      <span className="text-[11px] text-muted-foreground">{note}</span>
+    </div>
+  )
+}
+
+function BulletRow({ bullet }: { bullet: TailoredBullet }) {
+  const meta = VERDICT_META[bullet.verdict]
+  const isCut = bullet.verdict === 'cut'
+  return (
+    <div className={`flex flex-col gap-1.5 border-t border-border py-3 ${isCut ? 'opacity-60' : ''}`}>
+      <div className="flex items-start justify-between gap-3">
+        <p className={`min-w-0 flex-1 text-sm leading-relaxed ${isCut ? 'text-muted-foreground' : 'text-foreground'}`}>
+          {bullet.tailored}
+        </p>
+        <div className="flex shrink-0 items-center gap-1">
+          {bullet.verdict === 'lead' && <Star size={13} style={{ color: 'var(--status-green)' }} />}
+          {isCut && <Scissors size={13} style={{ color: 'var(--status-amber)' }} />}
+          <CopyButton text={bullet.tailored} />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge variant={meta.variant}>{meta.label}</Badge>
+        {bullet.keywords.map((k) => (
+          <Badge key={k} variant="blue">
+            {k}
+          </Badge>
+        ))}
+      </div>
+      {bullet.fit && <FillMeter fit={bullet.fit} />}
+      {bullet.changed && (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          <span className="font-semibold uppercase tracking-wide">was</span> {bullet.original}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function TailoredBulletsTab() {
+  const [jd, setJd] = useState('')
+  const [resumeText, setResumeText] = useState('')
+  const [company, setCompany] = useState('')
+
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<BulletsResult | null>(null)
+
+  async function run() {
+    if (!jd.trim()) return
+    setRunning(true)
+    setError(null)
+    setResult(null)
+    try {
+      const r = await api.bullets({
+        jd,
+        resume_text: resumeText.trim() || undefined,
+        company: company || undefined,
+      })
+      if (r.error || !r.bullets) setError(r.error ?? 'no bullets returned')
+      else setResult(r)
+    } catch (e) {
+      setError(String((e as Error).message ?? e))
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  // Preserve the server's ranking; just break the flat list back into its headings.
+  const groups: Array<{ section: TailoredBullet['section']; entry: string; items: TailoredBullet[] }> = []
+  for (const b of result?.bullets ?? []) {
+    const last = groups[groups.length - 1]
+    if (last && last.entry === b.entry && last.section === b.section) last.items.push(b)
+    else groups.push({ section: b.section, entry: b.entry, items: [b] })
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Sparkles size={17} style={{ color: 'var(--primary)' }} /> Tailored bullets
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Paste your résumé and a job description — get your own bullets rewritten in the posting's language,
+            ranked strongest first, with a call on what to cut. No file is generated: you paste these into the
+            résumé you already format yourself.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="Company (optional — auto-detected from the JD)"
+          />
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="bullets-resume"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Your résumé
+              </label>
+              <Textarea
+                id="bullets-resume"
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                placeholder="Paste your résumé text here… (leave empty to use your master profile)"
+                className="min-h-[220px]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="bullets-jd"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Job description
+              </label>
+              <Textarea
+                id="bullets-jd"
+                value={jd}
+                onChange={(e) => setJd(e.target.value)}
+                placeholder="Paste the job description here…"
+                className="min-h-[220px]"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end border-t border-border pt-4">
+            <Button onClick={run} disabled={running || !jd.trim()}>
+              {running ? (
+                <>
+                  <Loader2 className="animate-spin" /> Tailoring…
+                </>
+              ) : (
+                <>
+                  <Sparkles /> Tailor my bullets
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="min-h-[1.25rem]">
+        {error && <ErrorNote error={error} title="Tailoring failed." showStartHint={false} />}
+      </div>
+
+      {result?.bullets && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {result.job?.title || 'Role'} @ {result.job?.company || '—'}
+            </span>
+            <Badge variant="slate">{result.source === 'resume' ? 'from your résumé' : 'from master profile'}</Badge>
+            {!result.rewritten && <Badge variant="amber">ranked only — no API key, wording unchanged</Badge>}
+          </div>
+
+          {groups.map((g) => (
+            <Card key={`${g.section}:${g.entry}`}>
+              <CardHeader>
+                <CardTitle className="text-base">{g.entry}</CardTitle>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {SECTION_LABELS[g.section]}
+                </p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {g.items.map((b, i) => (
+                  <BulletRow key={`${b.original}:${i}`} bullet={b} />
+                ))}
+              </CardContent>
+            </Card>
+          ))}
+
+          {!!result.skills?.length && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Skills — JD-matching first</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm leading-relaxed text-foreground">{result.skills.join(', ')}</p>
+                <CopyButton text={result.skills.join(', ')} label="Copy skills line" />
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// =================================================================================
+// Tab 2 — Generate from JD
 // =================================================================================
 
 function GenerateFromJdTab() {
@@ -394,7 +667,7 @@ function GenerateFromJdTab() {
 }
 
 // =================================================================================
-// Tab 2 — Edit as code (ported from the old "Advanced: Edit YAML" section, verbatim
+// Tab 3 — Edit as code (ported from the old "Advanced: Edit YAML" section, verbatim
 // behavior — calls /api/resume-studio/yaml + /api/resume-studio/render, unchanged)
 // =================================================================================
 

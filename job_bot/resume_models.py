@@ -28,6 +28,18 @@ class TailoredEducation(_Base):
     coursework: list[str] = Field(default_factory=list)
 
 
+class SkillGroup(_Base):
+    """One labelled skill cluster ("Technical: Python, SQL, ...").
+
+    The master profile stores skills grouped by category; flattening them into
+    one comma list buries the hard skills among the soft ones and reads as
+    padding to a recruiter. Renderers emit these groups when present and fall
+    back to the flat `skills` list when they aren't."""
+
+    label: str
+    skills: list[str] = Field(default_factory=list)
+
+
 class TailoredResume(_Base):
     name: Optional[str] = None
     contact_line: str = ""
@@ -38,6 +50,7 @@ class TailoredResume(_Base):
     leadership: list[TailoredRole] = Field(default_factory=list)
     projects: list[TailoredRole] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
+    skill_groups: list[SkillGroup] = Field(default_factory=list)
     certifications: list[str] = Field(default_factory=list)
 
     # context

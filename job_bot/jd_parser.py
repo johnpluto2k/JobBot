@@ -94,16 +94,35 @@ def _seniority(text: str) -> str | None:
     return "mid"
 
 
+# Section headers that sail through a pure length filter and get mistaken for
+# the job title ("About the team" is 3 words and 14 characters).
+_SECTION_HEADER = re.compile(
+    r"^(about|overview|summary|responsibilities|qualifications|requirements|"
+    r"who we are|what you.?ll do|what we.?re looking for|the team|the role|"
+    r"benefits|compensation|our (team|firm|company)|job description)", re.I)
+
+# A headline is usually "Title - Company / Practice" or "Title at Company";
+# only the left segment is the title.
+_TITLE_TAIL = re.compile(r"\s+(?:[—–|·]|--|at)\s+")
+
+
 def _guess_title(text: str) -> str | None:
     for raw in text.splitlines():
-        line = raw.strip(" #*-•\t")
+        line = raw.strip(" #*-•	")
         if not line:
             continue
         if m := re.match(r"(?:job\s*title|position|role)\s*[:\-]\s*(.+)", line, re.I):
             return m.group(1).strip()
-        # otherwise first plausible title line
-        if 2 <= len(line.split()) <= 9 and not line.endswith((".", ":")) and len(line) < 70:
-            return line
+        if _SECTION_HEADER.match(line):
+            continue
+        # Split "IT Risk & Assurance Analyst - Deloitte Risk & Financial
+        # Advisory" down to just the role before applying the length window;
+        # otherwise the company name pushes a real headline past the word cap
+        # and the first section header wins instead.
+        head = _TITLE_TAIL.split(line, maxsplit=1)[0].strip(" ,")
+        if (2 <= len(head.split()) <= 9 and not head.endswith((".", ":"))
+                and len(head) < 70):
+            return head
     return None
 
 

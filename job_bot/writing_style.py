@@ -140,7 +140,13 @@ def split_metrics(text: str) -> list[tuple[str, bool]]:
 
 def polish_bullet(text: str) -> str:
     """Enforce the playbook's mechanical bullet formatting on any bullet,
-    LLM-rewritten or verbatim: collapse whitespace, no trailing period,
-    "&" instead of "and"."""
-    t = " ".join(text.split()).rstrip(".")
+    LLM-rewritten or verbatim: strip markdown emphasis, collapse whitespace,
+    no trailing period, "&" instead of "and".
+
+    The markdown strip matters: asked to emphasise a metric, the rewrite model
+    will happily return "improved accuracy by **18%**", and those asterisks
+    land verbatim in a .docx or a LaTeX bullet. No résumé bullet ever wants a
+    literal '**'."""
+    t = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), text)
+    t = " ".join(t.split()).rstrip(".")
     return re.sub(r"\band\b", "&", t)

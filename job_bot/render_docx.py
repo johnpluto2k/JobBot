@@ -1,162 +1,141 @@
-"""Render a TailoredResume to an ATS-clean one-page DOCX.
+"""Render a TailoredResume to an ATS-clean one-page DOCX (business / VMH track).
 
 Format rules (from the master plan): single column, no tables/text boxes/
-graphics, standard font (Calibri 11), black only, 0.5"+ margins, strong action
-verbs, no pronouns.
+graphics, standard font (Calibri), black only, 0.5"+ margins, strong action
+verbs, no pronouns. Section order and the 10–11pt type band come from
+`docs/resume_track_contract.md`.
+
+Layout is fitted rather than fixed: `resume_fit` evens the bullet counts, trims
+whole uniform rows that cannot fit, and picks the type/spacing/margin scale that
+fills exactly one page — so a long profile compresses instead of spilling onto a
+half-empty second page and a short one opens up instead of leaving dead space.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+from . import resume_fit
+from .resume_fit import FONT, VMARGIN, Block, clean_text
 from .resume_models import TailoredResume
-from .writing_style import split_metrics
 
-FONT = "Calibri"
-BODY_PT = 10.5
-NAME_PT = 18
-HEAD_PT = 11.5
+BODY_PT = resume_fit.BODY_PT
+NAME_PT = resume_fit.NAME_PT
+HEAD_PT = resume_fit.HEAD_PT
 
 
-def render_docx(resume: TailoredResume, out_path: Path) -> Path:
+def render_docx(resume: TailoredResume, out_path: Path,
+                trimmed: list[str] | None = None,
+                prefitted: bool = False) -> Path:
+    """Write `resume` to `out_path` as a one-page DOCX.
+
+    If `trimmed` is a list, the names of any content dropped to make the page
+    fit are appended to it so the caller can report them. Pass `prefitted=True`
+    when the caller has already run `resume_fit.trim_to_fit` — that is what
+    lets the ATS re-score describe the document actually shipped rather than a
+    fuller version of it.
+    """
     import docx
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
+    from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
     from docx.shared import Pt, RGBColor
 
+    if not prefitted:
+        resume, dropped = resume_fit.trim_to_fit(resume)
+        if trimmed is not None:
+            trimmed.extend(dropped)
+    blocks, sizes = resume_fit.layout(resume)
+    hmargin = sizes["_hmargin"]
+
     doc = docx.Document()
+
+    # Auto-hyphenation was tried here to tighten justified text and withdrawn:
+    # Word split "SuccessFactors" into "SuccessFac-" / "tors" and left "ing II"
+    # alone on a line under Education. Big 4 resumes do not contain mid-word
+    # hyphenation, and a five-character orphan line reads as a corrupt file.
+    # Justification is kept (an explicit user preference) with the measure held
+    # at 0.75" margins, which is what actually keeps the word spacing sane.
+
     for section in doc.sections:
-        section.top_margin = section.bottom_margin = Pt(36)      # 0.5"
-        section.left_margin = section.right_margin = Pt(54)      # 0.75"
+        section.top_margin = section.bottom_margin = Pt(VMARGIN)
+        section.left_margin = section.right_margin = Pt(hmargin)
 
-    style = doc.styles["Normal"]
-    style.font.name = FONT
-    style.font.size = Pt(BODY_PT)
-    style.font.color.rgb = RGBColor(0, 0, 0)
-    style.paragraph_format.space_after = Pt(0)
-    style.paragraph_format.space_before = Pt(0)
+    # Word's docDefaults ship 1.15 line spacing and 10pt space-after. Both are
+    # overridden explicitly — otherwise every paragraph carries an invisible
+    # half-blank line and the whole resume reads as full of gaps.
+    for style_name in ("Normal", "List Bullet"):
+        try:
+            st = doc.styles[style_name]
+        except KeyError:
+            continue
+        st.font.name = FONT
+        st.font.size = Pt(BODY_PT)
+        st.font.color.rgb = RGBColor(0, 0, 0)
+        pf = st.paragraph_format
+        pf.space_before = Pt(0)
+        pf.space_after = Pt(0)
+        pf.line_spacing = 1.0
 
-    def _spacing(p, before=0.0, after=0.0):
-        p.paragraph_format.space_before = Pt(before)
-        p.paragraph_format.space_after = Pt(after)
-
-    # --- Header ---
-    h = doc.add_paragraph()
-    h.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = h.add_run((resume.name or "").upper())
-    run.bold = True
-    run.font.size = Pt(NAME_PT)
-    _spacing(h, after=2)
-
-    c = doc.add_paragraph()
-    c.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    cr = c.add_run(resume.contact_line)
-    cr.font.size = Pt(BODY_PT)
-    _spacing(c, after=6)
-
-    def section_heading(text: str) -> None:
-        p = doc.add_paragraph()
-        r = p.add_run(text.upper())
-        r.bold = True
-        r.font.size = Pt(HEAD_PT)
-        _spacing(p, before=6, after=2)
-        # bottom border line
-        pPr = p._p.get_or_add_pPr()
-        from docx.oxml import OxmlElement
-        pbdr = OxmlElement("w:pBdr")
-        bottom = OxmlElement("w:bottom")
-        bottom.set(qn("w:val"), "single")
-        bottom.set(qn("w:sz"), "6")
-        bottom.set(qn("w:space"), "1")
-        bottom.set(qn("w:color"), "000000")
-        pbdr.append(bottom)
-        pPr.append(pbdr)
-
-    def entry_header(left: str, right: str | None, italic_left: str | None = None) -> None:
-        p = doc.add_paragraph()
-        # tab stop at right margin for the date
-        from docx.enum.text import WD_TAB_ALIGNMENT
-        from docx.shared import Inches
-        p.paragraph_format.tab_stops.add_tab_stop(Inches(7.0), WD_TAB_ALIGNMENT.RIGHT)
-        rl = p.add_run(left)
-        rl.bold = True
-        if right:
-            p.add_run("\t" + right).bold = True
-        _spacing(p, before=4, after=0)
-        if italic_left:
-            sp = doc.add_paragraph()
-            si = sp.add_run(italic_left)
-            si.italic = True
-            _spacing(sp, after=1)
-
-    def bullet(text: str) -> None:
-        p = doc.add_paragraph(style="List Bullet")
-        # Playbook: bold all metrics — recruiters scan numbers first.
-        for chunk, is_metric in split_metrics(text):
-            p.add_run(chunk).bold = is_metric
-        p.paragraph_format.space_after = Pt(1)
-        p.paragraph_format.left_indent = Pt(12)
-
-    if resume.summary:
-        section_heading("Summary")
-        s = doc.add_paragraph()
-        s.add_run(resume.summary)
-        _spacing(s, after=2)
-
-    def role_section(title: str, roles) -> None:
-        if not roles:
+    def _track(run, points: float) -> None:
+        """Condensed letter-spacing (Word's run-level w:spacing, in twentieths
+        of a point). Used only where it wins back a whole line — see
+        `resume_fit.assign_tracking`."""
+        if not points:
             return
-        section_heading(title)
-        for role in roles:
-            left = role.organization or role.role or ""
-            sub = None
-            if role.role and role.organization:
-                sub = role.role + (f"  |  {role.location}" if role.location else "")
-            entry_header(left, role.dates, italic_left=sub)
-            for b in role.bullets:
-                bullet(b)
+        rPr = run._r.get_or_add_rPr()
+        el = OxmlElement("w:spacing")
+        el.set(qn("w:val"), str(int(round(points * 20))))
+        rPr.append(el)
 
-    # Business track section order (per resume_track_contract.md):
-    # Experience → Leadership → Education → Projects → Skills
-    role_section("Experience", resume.experience)
-    role_section("Leadership & Activities", resume.leadership)
+    def add(blk: Block) -> None:
+        pt, before, after, indent = sizes[blk.kind]
+        p = doc.add_paragraph(style="List Bullet" if blk.kind == "bullet" else None)
+        pf = p.paragraph_format
+        pf.space_before = Pt(before)
+        pf.space_after = Pt(after)
+        pf.line_spacing = 1.0
+        if indent:
+            pf.left_indent = Pt(indent)
+        if blk.kind in ("name", "contact"):
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif blk.kind in ("bullet", "body"):
+            # Justified so a wrapped line runs the full width of the column
+            # instead of trailing off ragged halfway across.
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        if blk.tail:
+            pf.tab_stops.add_tab_stop(Pt(sizes["_usable_w"]), WD_TAB_ALIGNMENT.RIGHT)
 
-    # --- Education ---
-    if resume.education:
-        section_heading("Education")
-        for e in resume.education:
-            right = e.graduation_date
-            entry_header(e.school or "", right)
-            deg = doc.add_paragraph()
-            line = e.degree or ""
-            if e.gpa:
-                line += f"   |   GPA: {e.gpa}"
-            deg.add_run(line)
-            _spacing(deg, after=0)
-            if e.secondary:
-                sp = doc.add_paragraph(); sp.add_run(e.secondary); _spacing(sp, after=0)
-            if e.coursework:
-                cw = doc.add_paragraph()
-                cw.add_run("Relevant Coursework: ").bold = True
-                cw.add_run(", ".join(e.coursework))
-                _spacing(cw, after=2)
+        runs = []
+        for text, bold, italic in blk.runs:
+            r = p.add_run(clean_text(text))
+            r.bold = bold
+            r.italic = italic
+            r.font.size = Pt(pt)
+            runs.append(r)
+        if blk.tail:
+            r = p.add_run("\t" + blk.tail)
+            # The date column matches the weight of the line it sits on: bold
+            # beside the organization, italic beside the role.
+            r.bold = blk.kind == "entry"
+            r.italic = blk.kind == "sub"
+            r.font.size = Pt(pt)
+            runs.append(r)
+        for r in runs:
+            _track(r, blk.track)
 
-    if resume.projects:
-        section_heading("Projects")
-        for p in resume.projects:
-            entry_header(p.organization or p.role or "", None)
-            for b in p.bullets:
-                bullet(b)
+        if blk.kind == "head":
+            pbdr = OxmlElement("w:pBdr")
+            bottom = OxmlElement("w:bottom")
+            bottom.set(qn("w:val"), "single")
+            bottom.set(qn("w:sz"), "6")                      # 0.75pt rule
+            bottom.set(qn("w:space"), str(sizes["_border_space"]))
+            bottom.set(qn("w:color"), "000000")
+            pbdr.append(bottom)
+            p._p.get_or_add_pPr().append(pbdr)
 
-    if resume.skills:
-        section_heading("Skills")
-        sp = doc.add_paragraph()
-        sp.add_run(", ".join(resume.skills))
-        _spacing(sp, after=0)
-    if resume.certifications:
-        cp = doc.add_paragraph()
-        cp.add_run("Certifications: ").bold = True
-        cp.add_run(", ".join(resume.certifications))
+    for blk in blocks:
+        add(blk)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(out_path))

@@ -292,6 +292,48 @@ export interface StudioGenerateSummary {
   ats_before: number
   ats_after: number
 }
+// --- Bullet workbench (POST /api/bullets) ------------------------------------
+export type BulletVerdict = 'lead' | 'keep' | 'cut'
+
+export type FillVerdict = 'full' | 'ragged' | 'short'
+
+/** How well a bullet fills the lines it occupies on the page. */
+export interface BulletFit {
+  lines: number
+  last_fill: number      // 0..1, how full the final line is
+  verdict: FillVerdict
+  trim_chars: number     // chars to cut to drop a whole line (ragged only)
+  add_chars: number      // chars of room left on the line (short only)
+}
+
+export interface TailoredBullet {
+  section: 'experience' | 'leadership' | 'projects'
+  entry: string
+  original: string
+  tailored: string
+  relevance: number
+  verdict: BulletVerdict
+  keywords: string[]
+  changed: boolean
+  fit: BulletFit | null
+}
+
+export interface BulletsResult {
+  job?: {
+    title: string | null
+    company: string | null
+    role_type: string | null
+    required_keywords: string[]
+    preferred_keywords: string[]
+  }
+  source?: 'resume' | 'profile'
+  bullets?: TailoredBullet[]
+  skills?: string[]
+  rewritten?: boolean
+  markdown?: string
+  error?: string
+}
+
 export interface StudioGenerateResult {
   summary?: StudioGenerateSummary
   resume_files?: { id: number; kinds: Array<'pdf' | 'docx' | 'yaml' | 'typ'> }
@@ -515,6 +557,8 @@ export const api = {
   studioRender: (yaml: string) => post<StudioRender>('/api/resume-studio/render', { yaml }),
   studioDocx: (source: string) =>
     get<StudioDocx>(`/api/resume-studio/docx?source=${encodeURIComponent(source)}`),
+  bullets: (body: { jd: string; resume_text?: string; url?: string; company?: string; rewrite_cuts?: boolean }) =>
+    post<BulletsResult>('/api/bullets', body),
   studioGenerate: (body: { jd_text: string; company?: string; role?: string }) =>
     post<StudioGenerateResult>('/api/studio/generate', body),
   studioHistory: () => get<StudioHistory>('/api/studio/history'),

@@ -26,6 +26,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from . import resume_fit
 from .resume_models import TailoredResume
 from .writing_style import split_metrics
 
@@ -108,9 +109,53 @@ def _project_entries(projects) -> list[dict]:
     return entries
 
 
+def _design(theme: str, scale: float) -> dict:
+    """Compact design overrides, scaled so the content fills exactly one page.
+
+    `scale` > 1 opens a short profile up rather than leaving a band of white
+    space at the bottom; < 1 tightens a long one. Margins move with the type
+    but never past the 0.4"/0.5" ATS floor.
+    """
+    def pt(v):
+        return f"{round(v * scale, 1)}pt"
+
+    def em(v):
+        return f"{round(v * scale, 2)}em"
+
+    def cm(v):
+        return f"{round(v * scale, 2)}cm"
+
+    def inch(v, lo, hi):
+        return f"{round(min(hi, max(lo, v * scale)), 2)}in"
+
+    return {
+        "theme": theme,
+        "page": {"top_margin": inch(0.4, 0.4, 0.6),
+                 "bottom_margin": inch(0.4, 0.4, 0.6),
+                 "left_margin": inch(0.55, 0.5, 0.75),
+                 "right_margin": inch(0.55, 0.5, 0.75),
+                 "show_footer": False, "show_top_note": False},
+        "typography": {"line_spacing": em(0.4),
+                       "font_size": {"body": pt(9), "name": pt(16)}},
+        "section_titles": {"space_above": cm(0.25), "space_below": cm(0.12)},
+        "sections": {"space_between_regular_entries": em(0.5)},
+        "header": {"space_below_name": cm(0.25),
+                   "space_below_connections": cm(0.25)},
+    }
+
+
 def resume_to_rendercv_dict(resume: TailoredResume,
-                            theme: str = DEFAULT_THEME) -> dict:
-    """Map a TailoredResume into RenderCV's input schema (as a plain dict)."""
+                            theme: str = DEFAULT_THEME,
+                            scale: float = 1.0,
+                            trim: bool = True) -> dict:
+    """Map a TailoredResume into RenderCV's input schema (as a plain dict).
+
+    By default the resume is first passed through `resume_fit.trim_to_fit`, so
+    the YAML never carries more content than one page can hold — the engineering
+    track used to silently run onto a second, mostly blank page.
+    """
+    if trim:
+        resume, _ = resume_fit.trim_to_fit(resume)
     cv: dict = {"name": resume.name or "Candidate"}
     cv.update(_parse_contact(resume.contact_line or ""))
 
@@ -133,44 +178,56 @@ def resume_to_rendercv_dict(resume: TailoredResume,
                                        "details": ", ".join(resume.certifications)}]
     cv["sections"] = sections
 
-    # Compact design overrides so a full profile fits one page (the same
-    # content volume the docx renderer fits): tight margins, no footer or
-    # "last updated" note, slightly smaller body type, tighter section gaps.
-    design = {
-        "theme": theme,
-        "page": {"top_margin": "0.4in", "bottom_margin": "0.4in",
-                 "left_margin": "0.55in", "right_margin": "0.55in",
-                 "show_footer": False, "show_top_note": False},
-        "typography": {"line_spacing": "0.4em",
-                       "font_size": {"body": "9pt", "name": "16pt"}},
-        "section_titles": {"space_above": "0.25cm", "space_below": "0.12cm"},
-        "sections": {"space_between_regular_entries": "0.5em"},
-        "header": {"space_below_name": "0.25cm",
-                   "space_below_connections": "0.25cm"},
-    }
-    return {"cv": cv, "design": design}
+    return {"cv": cv, "design": _design(theme, scale)}
 
 
 # -------------------------------------------------------------------- render
 def write_rendercv_yaml(resume: TailoredResume, yaml_path: Path,
-                        theme: str = DEFAULT_THEME) -> Path:
+                        theme: str = DEFAULT_THEME, scale: float = 1.0) -> Path:
     """Write the RenderCV input file. JSON is a strict subset of YAML, so we
     emit JSON — valid input for RenderCV's YAML parser with no PyYAML dep."""
-    data = resume_to_rendercv_dict(resume, theme=theme)
+    data = resume_to_rendercv_dict(resume, theme=theme, scale=scale)
     yaml_path.parent.mkdir(parents=True, exist_ok=True)
     yaml_path.write_text(json.dumps(data, indent=2, ensure_ascii=False),
                          encoding="utf-8")
     return yaml_path
 
 
+# Design scales tried, largest first: the first one that typesets to a single
+# page is the one that fills the page best, and it is already written to disk,
+# so the search costs no extra render.
+FIT_SCALES = (1.30, 1.20, 1.10, 1.00, 0.92, 0.85)
+
+
+def _page_count(pdf: Path) -> int | None:
+    try:
+        import fitz
+        with fitz.open(pdf) as doc:
+            return len(doc)
+    except Exception:
+        return None          # no PyMuPDF — can't measure, accept what we have
+
+
 def render_rendercv(resume: TailoredResume, out_path: Path,
                     theme: str = DEFAULT_THEME) -> Path:
-    """Render `out_path` (a .pdf) via the rendercv CLI. Also leaves the
-    editable source at `<out_dir>/resume.yaml`. Raises RuntimeError with a
-    clear message if rendercv is unavailable or the render fails."""
+    """Render `out_path` (a .pdf) via the rendercv CLI, at the largest type
+    scale that still typesets to a single page. Also leaves the editable source
+    at `<out_dir>/resume.yaml`. Raises RuntimeError with a clear message if
+    rendercv is unavailable or the render fails."""
+    out_path = Path(out_path)
+    for scale in FIT_SCALES:
+        _render_rendercv_at(resume, out_path, theme=theme, scale=scale)
+        pages = _page_count(out_path)
+        if pages is None or pages <= 1:
+            break
+    return out_path
+
+
+def _render_rendercv_at(resume: TailoredResume, out_path: Path,
+                        theme: str = DEFAULT_THEME, scale: float = 1.0) -> Path:
     out_path = Path(out_path)
     yaml_path = write_rendercv_yaml(resume, out_path.with_name("resume.yaml"),
-                                    theme=theme)
+                                    theme=theme, scale=scale)
 
     try:
         import rendercv  # noqa: F401

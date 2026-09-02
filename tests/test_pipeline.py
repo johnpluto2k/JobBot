@@ -125,6 +125,123 @@ def test_rendercv_pdf_one_page_and_parseable():
     print("ok: rendercv pdf (1 page, clean text layer)")
 
 
+def test_docx_fills_one_page_with_clear_section_rules():
+    """The DOCX must fill one page and no more: content trimmed to fit, type
+    scaled up to close any leftover gap, and section rules held clear of the
+    heading text instead of sitting on its descender line."""
+    loaded = _load()
+    if not loaded:
+        return
+    profile, job = loaded
+    from job_bot import resume_fit
+    from job_bot.render_docx import render_docx
+    from job_bot.tailor import tailor_resume
+
+    resume = tailor_resume(profile, job, use_llm=False)
+    fitted, dropped = resume_fit.trim_to_fit(resume)
+    # Measure through `layout()` — the same call `render_docx` makes. Building
+    # the blocks by hand here skipped `assign_tracking`, so the test was sizing
+    # a layout that is never rendered: untracked text wraps onto lines the real
+    # DOCX doesn't have, reading ~35pt taller. That error was invisible while
+    # the profile was thin and became a false failure as soon as it grew.
+    blocks, sizes = resume_fit.layout(fitted)
+    height = resume_fit.estimate_height(blocks, sizes)
+
+    assert height <= resume_fit.USABLE_H,         f"docx layout overflows one page ({height:.0f}pt of {resume_fit.USABLE_H:.0f})"
+    assert height >= resume_fit.USABLE_H * 0.85,         f"docx layout leaves {resume_fit.USABLE_H - height:.0f}pt of dead space"
+    assert fitted.experience and fitted.skills, "trimming gutted the resume"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = render_docx(resume, Path(tmp) / "resume.docx")
+        import docx
+        from docx.oxml.ns import qn
+        doc = docx.Document(str(out))
+        spaces = [int(b.get(qn("w:space")))
+                  for p in doc.paragraphs
+                  for pbdr in p._p.findall(qn("w:pPr") + "/" + qn("w:pBdr"))
+                  for b in pbdr.findall(qn("w:bottom"))]
+        assert spaces, "no section rules found in the docx"
+        assert min(spaces) >= 2,             f"section rule sits {min(spaces)}pt under the heading — it will cut into it"
+        # Word's 1.15 default line spacing is what made the old output look
+        # padded with blank half-lines; every paragraph must pin it to single.
+        assert doc.styles["Normal"].paragraph_format.line_spacing == 1.0
+    print(f"ok: docx fills one page ({height:.0f}pt, {len(dropped)} cuts)")
+
+
+def test_short_resume_is_not_padded_out():
+    """A thin resume grows toward the page rather than being stretched past
+    readable type, and never sprouts a second page."""
+    from job_bot import resume_fit
+    from job_bot.resume_models import (TailoredEducation, TailoredResume,
+                                       TailoredRole)
+
+    thin = TailoredResume(
+        name="Test Candidate", contact_line="a@b.com | Somewhere, MD",
+        education=[TailoredEducation(school="A University", degree="B.S.",
+                                     graduation_date="May 2027")],
+        experience=[TailoredRole(organization="Org", role="Analyst",
+                                 dates="2025 - Present",
+                                 bullets=["Did a thing that mattered."])],
+        skills=["Excel"],
+    )
+    fitted, dropped = resume_fit.trim_to_fit(thin)
+    assert not dropped, "nothing should be trimmed from a short resume"
+    sizes = resume_fit.fit_sizes(fitted)
+    assert sizes["_t"] == 1.0, "a short resume should open up to the max scale"
+    assert sizes["body"][0] <= resume_fit.BODY_PT * 1.2,         "short resumes must not be blown up to absurd type to fill the page"
+    print("ok: short resume opens up without overreaching")
+
+
+def test_business_track_contract():
+    """Guards the business-track rules in docs/resume_track_contract.md that a
+    renderer change could silently break: no Summary, contract section order,
+    uniform bullet counts, and body type inside the 10-11pt band."""
+    loaded = _load()
+    if not loaded:
+        return
+    profile, job = loaded
+    from job_bot import resume_fit
+    from job_bot.tailor import tailor_resume
+
+    resume = tailor_resume(profile, job, use_llm=False)
+    fitted, _ = resume_fit.trim_to_fit(resume)
+    fitted.summary = None                      # what generate.py ships
+    blocks, sizes = resume_fit.layout(fitted)
+
+    heads = [b.text for b in blocks if b.kind == "head"]
+    assert "SUMMARY" not in heads, "business track must not render a Summary"
+    expected = ["EXPERIENCE", "LEADERSHIP & ACTIVITIES", "EDUCATION",
+                "PROJECTS", "TECHNICAL SKILLS"]
+    assert heads == [h for h in expected if h in heads],         f"section order violates the track contract: {heads}"
+
+    for kind, entries in (("experience", fitted.experience),
+                          ("leadership", fitted.leadership),
+                          ("projects", fitted.projects)):
+        counts = {len(e.bullets) for e in entries if e.bullets}
+        assert len(counts) <= 1, f"{kind} bullet counts are ragged: {counts}"
+
+    assert resume_fit.BODY_MIN_PT <= sizes["_body_pt"] <= resume_fit.BODY_MAX_PT,         f"body type {sizes['_body_pt']:.2f}pt is outside the contract's 10-11pt band"
+    print(f"ok: business contract ({sizes['_body_pt']:.1f}pt, sections {heads})")
+
+
+def test_skill_groups_survive_tailoring():
+    """The master profile's skill categories must reach the page — flattening
+    them buries the hard skills among the soft ones."""
+    loaded = _load()
+    if not loaded:
+        return
+    profile, job = loaded
+    from job_bot.tailor import tailor_resume
+
+    resume = tailor_resume(profile, job, use_llm=False)
+    labels = [g.label for g in resume.skill_groups]
+    assert labels, "skill groups were flattened away"
+    assert len(set(labels)) == len(labels), f"duplicate skill group labels: {labels}"
+    flat = {s for g in resume.skill_groups for s in g.skills}
+    assert flat == set(resume.skills), "grouped skills differ from the flat list"
+    print(f"ok: skill groups {labels}")
+
+
 def test_renderer_for_field():
     """Field -> template mapping: tech fields render on the CS/tech (rendercv)
     template, business/audit fields keep the VMH docx template."""
@@ -146,6 +263,10 @@ if __name__ == "__main__":
         pass
     test_tailor_and_docx()
     test_reportlab_pdf_one_page()
+    test_docx_fills_one_page_with_clear_section_rules()
+    test_short_resume_is_not_padded_out()
+    test_business_track_contract()
+    test_skill_groups_survive_tailoring()
     test_rendercv_pdf_one_page_and_parseable()
     test_renderer_for_field()
     print("\nall pipeline regression tests passed")

@@ -122,12 +122,30 @@ def _title_alignment(job: JobPosting, profile: dict, corpus_tokens: set[str]) ->
     if not title_tokens:
         return 0.5
     overlap = sum(1 for t in title_tokens if t in corpus_tokens) / len(title_tokens)
+    return round(0.7 * overlap + 0.3 * _role_bonus(job, profile), 4)
+
+
+def _role_bonus(job: JobPosting, profile: dict) -> float:
+    """How well the JD's role type matches the candidate's stated targets.
+
+    This used to be a naive substring test in either direction, which scored 0
+    for a candidate whose targets are "Big 4 Audit" and "IT Audit / Technology
+    Risk" against a role type of "Audit / Assurance" — three audit roles that
+    share no containing substring. Matching on shared tokens instead credits
+    the overlap that is actually there, proportionally: a role type whose every
+    token appears in one of the targets scores 1.0, half its tokens scores 0.5.
+    """
     targets = [t.lower() for t in profile.get("targets", {}).get("target_roles", [])]
-    role_bonus = 0.0
-    if job.role_type and any(job.role_type.lower() in t or t in job.role_type.lower()
-                             for t in targets):
-        role_bonus = 1.0
-    return round(0.7 * overlap + 0.3 * role_bonus, 4)
+    if not job.role_type or not targets:
+        return 0.0
+    role = job.role_type.lower()
+    if any(role in t or t in role for t in targets):
+        return 1.0
+    role_tokens = set(tokenize(job.role_type))
+    if not role_tokens:
+        return 0.0
+    return max((len(role_tokens & set(tokenize(t))) / len(role_tokens)
+                for t in targets), default=0.0)
 
 
 def _quantification(profile: dict, jd_keywords: set[str]) -> tuple[float, str]:

@@ -17,9 +17,95 @@ def _a(word: str) -> str:
     return "an" if word[:1].lower() in "aeiou" else "a"
 
 
-def _top_experience(profile: dict, job: JobPosting) -> dict | None:
-    exps = profile.get("experience", []) + profile.get("leadership", [])
-    return exps[0] if exps else None
+def _serial(items: list[str]) -> str:
+    """Oxford-comma join. Without this the template ran its keyword list
+    straight into the following clause -- "emphasizes accounting, attention to
+    detail, auditing, and my experience maps closely to it" reads as a
+    four-item list with a broken last element."""
+    items = [i for i in items if i]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def _first_person(bullet: str) -> str:
+    """Re-conjugate a resume bullet for use in letter prose.
+
+    Resume bullets are subjectless and third-person singular by convention
+    ("Builds & ships full-stack features..."). Dropping one into a sentence
+    that starts "At CowSync, I ..." produced "I builds & ships" -- a
+    subject-verb break in the letter's most important sentence. Past-tense
+    bullets are already correct; only the present-tense -s form needs undoing.
+    """
+    def base(verb: str) -> str:
+        low = verb.lower()
+        if low.endswith("ed") or not low.endswith("s") or low.endswith("ss"):
+            return low                  # past tense, or not an -s form
+        if low.endswith("ies") and len(low) > 4:
+            return low[:-3] + "y"       # identifies -> identify
+        if low.endswith(("ches", "shes", "sses", "xes", "zes")):
+            return low[:-2]             # pitches -> pitch, fixes -> fix
+        return low[:-1]                 # builds -> build, uses -> use
+
+    words = (bullet or "").split()
+    if not words:
+        return ""
+    out = [base(words[0])]
+    i = 1
+    # Compound openers ("Builds & ships ...") need every verb conjugated, not
+    # just the first, or the letter reads "I build & ships".
+    while i + 1 < len(words) and words[i] in ("&", "and"):
+        out += [words[i], base(words[i + 1])]
+        i += 2
+    return " ".join(out + words[i:])
+
+
+def _top_experience(profile: dict, job: JobPosting) -> tuple[dict, str] | None:
+    """The single most JD-relevant (role, bullet) pair, not simply the first
+    one on file -- the newest job is not always the one that argues for you."""
+    from .tailor import _bullet_relevance, _jd_aliases
+
+    aliases = _jd_aliases(job)
+    jd_text = job.raw_text or ""
+    best = None
+    for entry in profile.get("experience", []) + profile.get("leadership", []):
+        for b in entry.get("bullets", []):
+            text = b.get("text") if isinstance(b, dict) else str(b)
+            if not text:
+                continue
+            rel = _bullet_relevance(b if isinstance(b, dict) else {"text": text},
+                                    aliases, jd_text)
+            if best is None or rel > best[0]:
+                best = (rel, entry, text)
+    return (best[1], best[2]) if best else None
+
+
+def _supported_keywords(profile: dict, job: JobPosting) -> list[str]:
+    """JD keywords the candidate can actually back up.
+
+    The template used to name `job.required_keywords[:3]`, which is sorted
+    alphabetically — so an IT Risk letter opened with "Your posting emphasizes
+    access management ... and that is where my experience sits" for a candidate
+    with no access-management experience. Naming a requirement you do not meet,
+    in the sentence claiming you meet it, is the one thing a cover letter must
+    never do."""
+    from .ats_engine import load_profile, profile_text  # noqa: F401
+    from .similarity import contains_phrase
+    from .skills_ontology import SKILL_ALIASES
+
+    try:
+        corpus = profile_text(profile).lower()
+    except Exception:
+        return list(job.required_keywords[:3])
+    out = []
+    for kw in list(job.required_keywords) + list(job.preferred_keywords):
+        if any(contains_phrase(corpus, a) for a in SKILL_ALIASES.get(kw, [kw])):
+            out.append(kw)
+    return out
 
 
 def _template(profile: dict, job: JobPosting) -> str:
@@ -31,33 +117,46 @@ def _template(profile: dict, job: JobPosting) -> str:
     grad = edu.get("graduation_date") or "2027"
     major = edu.get("major") or "Accounting and Information Science"
 
-    matched = [k for k in job.required_keywords[:5]]
-    skills_phrase = ", ".join(matched[:3]) or "audit, data analysis, and internal controls"
+    skills_phrase = (_serial(_supported_keywords(profile, job)[:3])
+                     or "audit, data analysis, and internal controls")
 
-    exp = _top_experience(profile, job)
+    top = _top_experience(profile, job)
     exp_line = ""
-    if exp:
-        org = exp.get("organization", "")
-        b = (exp.get("bullets") or [{}])[0].get("text", "")
-        exp_line = f" At {org}, I {b[0].lower() + b[1:] if b else 'delivered measurable results'}."
+    if top:
+        entry, bullet = top
+        org = entry.get("organization", "")
+        # Resume bullets use "&" by house style; letter prose should not.
+        phrase = _first_person(bullet).rstrip(".").replace(" & ", " and ")
+        exp_line = f" At {org}, I {phrase}." if phrase else ""
 
-    coursework = ", ".join((edu.get("relevant_coursework") or [])[:3])
-    course_line = (f" Coursework in {coursework} backs this up, and I'm on a "
+    # Rank by JD relevance, exactly as the resume does — reading the profile
+    # order gave an IT-audit letter "Discovering New Ventures" while
+    # Intermediate Accounting sat unused two lines further down.
+    from .tailor import _jd_aliases, _rank_by_jd
+    coursework = _serial(_rank_by_jd(edu.get("relevant_coursework") or [],
+                                     job, _jd_aliases(job))[:3])
+
+    # job.role_type is a taxonomy label ("Audit / Assurance"); a spaced slash
+    # mid-sentence reads as machine residue. Say it the way a person would.
+    role_phrase = (job.role_type or "").replace(" / ", " and ").lower() or "role"
+    course_line = (f" I chose coursework in {coursework}, and I am on a "
                    "CPA-eligible academic track." if coursework else
-                   " I'm on a CPA-eligible academic track.")
+                   " I am on a CPA-eligible academic track.")
 
-    today = date.today().strftime("%B %d, %Y")
+    # "%d" zero-pads ("September 01, 2026"); letters are dated the way people
+    # write dates.
+    today = f"{date.today():%B} {date.today().day}, {date.today():%Y}"
     return f"""{today}
 
 Dear {company} Hiring Team,
 
-As {_a(major)} {major} student at the University of Maryland graduating in {grad}, the {title} role at {company} lines up directly with what I've been building toward: work at the intersection of accounting, technology, and analytics.
+I am {_a(major)} {major} student at the University of Maryland, graduating in {grad}, and I am applying for the {title} role at {company}. It lines up directly with what I have been building toward: work at the intersection of accounting, technology, and analytics.
 
-Your posting emphasizes {skills_phrase}, and my experience maps closely to it.{exp_line} I pair financial rigor with a technical, data-driven approach, and I consistently quantify the impact of my work.
+Your posting emphasizes {skills_phrase}, and that is where my experience sits.{exp_line} I pair financial rigor with a technical, data-driven approach, and I quantify the impact of my work.
 
-That mix is deliberate.{course_line} It's the combination of technical skills, client service, and compliance judgment that {_a(job.role_type or 'high-impact')} {job.role_type or 'high-impact'} role like this one draws on daily.
+That mix is deliberate:{course_line} The combination of technical skill, client service, and compliance judgment is what {_a(role_phrase)} {role_phrase} role like this one draws on daily.
 
-Thank you for your time and consideration — I'd welcome the chance to discuss how my background can contribute to your team.
+Thank you for your time and consideration — I would welcome the chance to discuss how my background can contribute to your team.
 
 Sincerely,
 {name}

@@ -30,7 +30,27 @@ SKILL_ALIASES: dict[str, list[str]] = {
     # --- audit / risk / accounting ---
     "auditing": ["audit", "auditing", "internal audit", "external audit"],
     "it audit": ["it audit", "technology risk", "it risk", "itgc", "sox itgc"],
-    "internal controls": ["internal controls", "internal control", "controls testing", "control testing"],
+    "internal controls": ["internal controls", "internal control", "controls testing",
+                          "control testing", "general controls", "it general controls",
+                          "application controls", "automated controls",
+                          "control walkthrough", "control walkthroughs",
+                          "control gap", "control gaps", "control documentation"],
+    # IT-audit vocabulary this ontology was missing entirely. Without these an
+    # IT Risk & Assurance req extracted as "accounting, attention to detail,
+    # auditing" — so every downstream ranker (coursework, bullets, certs,
+    # cover-letter evidence) was ranking against a keyword set that did not
+    # describe the job.
+    "database design": ["database design", "database modeling", "data modeling",
+                        "database management"],
+    "information systems": ["information systems", "accounting information systems",
+                            "management information systems"],
+    "soc reporting": ["soc 1", "soc 2", "soc reporting",
+                      "service organization control"],
+    "data governance": ["data governance", "data privacy"],
+    "access management": ["access management", "user access",
+                          "identity and access"],
+    "change management": ["change management"],
+    "erp systems": ["erp", "erp system", "erp systems", "grc tooling", "grc"],
     "sox": ["sox", "sarbanes-oxley", "sarbanes oxley"],
     "risk management": ["risk management", "risk assessment", "enterprise risk", "operational risk"],
     "compliance": ["compliance", "regulatory", "regulatory compliance"],

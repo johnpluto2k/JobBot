@@ -13,7 +13,8 @@ from datetime import date as _date
 
 from . import config
 from .jd_models import JobPosting
-from .resume_models import TailoredEducation, TailoredResume, TailoredRole
+from .resume_models import (SkillGroup, TailoredEducation, TailoredResume,
+                             TailoredRole)
 from .similarity import contains_phrase, tfidf_cosine
 from .skills_ontology import SKILL_ALIASES
 from .writing_style import RESUME_BULLET_RULES, STYLE_RULES, polish_bullet
@@ -118,13 +119,74 @@ def _select_project(entry: dict, jd_aliases: set[str], jd_text: str) -> tuple[Ta
     return role, rel
 
 
+# Master-profile skill categories -> the label a recruiter actually reads.
+# Anything unmapped keeps its own name, title-cased.
+SKILL_GROUP_LABELS = {
+    "technical": "Technical",
+    "analytical": "Analytical",
+    "other": "Tools",
+    "tools": "Tools",
+    "soft": "Professional",
+}
+# Order the groups appear in. Hard skills first: a keyword parser and a
+# recruiter's eye both start at the top of the section.
+SKILL_GROUP_ORDER = ["Technical", "Analytical", "Tools", "Professional"]
+
+
+def _jd_matches(skill: str, jd_kw: set[str]) -> bool:
+    low = skill.lower()
+    return any(low == a or a in low
+               for kw in jd_kw for a in SKILL_ALIASES.get(kw, [kw]))
+
+
 def _order_skills(profile: dict, job: JobPosting) -> list[str]:
     all_skills = [s for g in profile.get("skills", []) for s in g.get("skills", [])]
     jd_kw = set(job.all_keywords)
-    matching = [s for s in all_skills if any(
-        s.lower() == a or a in s.lower() for kw in jd_kw for a in SKILL_ALIASES.get(kw, [kw]))]
+    matching = [s for s in all_skills if _jd_matches(s, jd_kw)]
     rest = [s for s in all_skills if s not in matching]
     return matching + rest
+
+
+def _rank_by_jd(items: list[str], job: JobPosting, jd_aliases: set[str]) -> list[str]:
+    """Order free-text items (coursework, certifications) by how much this JD
+    cares about them. The old code sliced the raw list, so an IT-audit
+    application led its coursework with "Discovering New Ventures" while
+    Intermediate Accounting and Technology Infrastructure sat unused."""
+    jd_text = job.raw_text or ""
+
+    def rank(pair):
+        idx, text = pair
+        low = text.lower()
+        hits = sum(1 for a in jd_aliases if contains_phrase(low, a))
+        sim = tfidf_cosine(text, jd_text) if jd_text else 0.0
+        return (-hits, -sim, idx)       # ties keep the profile's own order
+
+    return [t for _, t in sorted(enumerate(items), key=rank)]
+
+
+def _group_skills(profile: dict, job: JobPosting) -> list[SkillGroup]:
+    """Keep the master profile's skill categories instead of flattening them.
+
+    A flat list puts "Leadership, Collaboration" in the same breath as "REST
+    APIs", which reads as padding and dilutes the hard-skill keywords. Within
+    each group, JD-matching skills come first."""
+    jd_kw = set(job.all_keywords)
+    groups: list[SkillGroup] = []
+    for g in profile.get("skills", []):
+        raw = g.get("category") or "other"
+        label = SKILL_GROUP_LABELS.get(raw.lower(), raw.replace("_", " ").title())
+        skills = list(g.get("skills", []))
+        if not skills:
+            continue
+        skills.sort(key=lambda s: not _jd_matches(s, jd_kw))   # stable: matches first
+        existing = next((x for x in groups if x.label == label), None)
+        if existing:
+            existing.skills.extend(s for s in skills if s not in existing.skills)
+        else:
+            groups.append(SkillGroup(label=label, skills=skills))
+    groups.sort(key=lambda g: (SKILL_GROUP_ORDER.index(g.label)
+                               if g.label in SKILL_GROUP_ORDER else len(SKILL_GROUP_ORDER)))
+    return groups
 
 
 def _summary(profile: dict, job: JobPosting, top_skills: list[str]) -> str:
@@ -159,6 +221,7 @@ def tailor_resume(profile: dict, job: JobPosting, use_llm: bool | None = None) -
     )[: MAX_ROLES["projects"]]
 
     skills = _order_skills(profile, job)
+    skill_groups = _group_skills(profile, job)
     summary = _summary(profile, job, skills)
 
     personal = profile.get("personal", {})
@@ -171,7 +234,8 @@ def tailor_resume(profile: dict, job: JobPosting, use_llm: bool | None = None) -
             school=e.get("school"), degree=e.get("degree"),
             secondary=e.get("secondary_major"), gpa=e.get("gpa"),
             graduation_date=e.get("graduation_date"),
-            coursework=e.get("relevant_coursework", [])[:8],
+            coursework=_rank_by_jd(e.get("relevant_coursework", []),
+                                   job, jd_aliases)[:8],
         )
         for e in profile.get("education", [])
     ]
@@ -185,7 +249,9 @@ def tailor_resume(profile: dict, job: JobPosting, use_llm: bool | None = None) -
         leadership=[r for r, _ in leadership],
         projects=[r for r, _ in projects],
         skills=skills,
-        certifications=profile.get("certifications", []),
+        skill_groups=skill_groups,
+        certifications=_rank_by_jd(profile.get("certifications", []),
+                                   job, jd_aliases),
         target_title=job.title,
         target_company=job.company,
     )

@@ -178,12 +178,26 @@ def update(company_id: int, **kwargs) -> dict:
         # Build the UPDATE statement dynamically
         allowed_fields = {
             "name", "career_site_url", "ats_platform", "portals",
-            "target_fields", "tier", "notes"
+            "target_fields", "tier", "notes",
+            # Posting-watcher coordinates and state (see job_bot/watch.py).
+            "ats_token", "ats_host", "ats_tenant", "ats_site",
+            "watch_enabled", "last_watch_at", "last_watch_new", "last_watch_error",
         }
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
 
         if not updates:
             return existing
+
+        # Renaming a company has to move its dedupe key too. This used to update
+        # `name` alone, leaving name_normalized pointing at the OLD name - so
+        # get_or_create() with the new name missed the row and made a duplicate.
+        if "name" in updates:
+            from . import applications
+
+            new_key = applications.canon(updates["name"])
+            if not new_key:
+                raise ValueError(f"Cannot normalize company name: {updates['name']}")
+            updates["name_normalized"] = new_key
 
         # Convert list fields to JSON
         if "portals" in updates and isinstance(updates["portals"], list):

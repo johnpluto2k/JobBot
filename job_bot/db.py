@@ -231,7 +231,20 @@ def _migrate(con: sqlite3.Connection) -> None:
 
     # Companies table (created via SCHEMA, but migrations for new columns go here).
     ccols = {r["name"] for r in con.execute("PRAGMA table_info(companies)")}
-    # (No additional columns to migrate yet; the table is created fresh in SCHEMA.)
+    # Posting-watcher state (job_bot/watch.py). career_site_url / ats_platform
+    # already exist but are almost entirely NULL; these hold the specific
+    # coordinates a public job-board API actually needs.
+    for col, decl in (("ats_token", "TEXT"),          # greenhouse/ashby/smartrecruiters slug
+                      ("ats_host", "TEXT"),           # workday host, e.g. pwc.wd3.myworkdayjobs.com
+                      ("ats_tenant", "TEXT"),         # workday tenant, e.g. pwc
+                      ("ats_site", "TEXT"),           # workday site slug
+                      ("watch_enabled", "INTEGER"),   # 1 = poll this company
+                      ("last_watch_at", "TEXT"),
+                      ("last_watch_new", "INTEGER"),  # new postings found on the last pass
+                      ("last_watch_error", "TEXT")):
+        if col not in ccols:
+            con.execute(f"ALTER TABLE companies ADD COLUMN {col} {decl}")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_company_watch ON companies(watch_enabled)")
 
     con.commit()
 

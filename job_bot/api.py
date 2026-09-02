@@ -51,6 +51,16 @@ async def _lifespan(app: FastAPI):
             gmail_client.run_sync_if_logged_in, "interval", minutes=15,
             id="gmail_sync", coalesce=True, max_instances=1,
         )
+        # Company posting watcher. Six hours, not fifteen minutes: these are other
+        # people's job boards and postings do not turn over that fast. The work
+        # queue is companies.next_check_due, so each pass only touches what is
+        # actually due and the 7-day reschedule spreads the load on its own.
+        from . import watch
+
+        scheduler.add_job(
+            watch.run_if_due, "interval", hours=6,
+            id="company_watch", coalesce=True, max_instances=1,
+        )
         scheduler.start()
     except ImportError:
         log.warning("APScheduler not installed — background Gmail sync disabled "
@@ -180,6 +190,46 @@ def sync_now() -> dict:
     status["running"] = False
     status["gmail_connected"] = True
     return status
+
+
+@app.get("/api/watch/status")
+def watch_status() -> dict:
+    """Which companies are being polled, and what the last pass found."""
+    from . import companies
+
+    rows = [c for c in companies.list_all() if c.get("watch_enabled")]
+    due = {c["id"] for c in companies.due_for_check()}
+    by_platform: dict[str, int] = {}
+    for c in rows:
+        key = c.get("ats_platform") or "unknown"
+        by_platform[key] = by_platform.get(key, 0) + 1
+    return {
+        "watched": len(rows),
+        "due_now": len([c for c in rows if c["id"] in due]),
+        "by_platform": by_platform,
+        "last_pass": max((c.get("last_watch_at") or "" for c in rows), default="") or None,
+        "errors": [{"company": c["name"], "error": c["last_watch_error"]}
+                   for c in rows if c.get("last_watch_error")],
+        "companies": [
+            {"id": c["id"], "name": c["name"], "platform": c.get("ats_platform"),
+             "last_watch_at": c.get("last_watch_at"),
+             "last_watch_new": c.get("last_watch_new"),
+             "due": c["id"] in due}
+            for c in sorted(rows, key=lambda x: (x.get("last_watch_new") or 0), reverse=True)
+        ],
+    }
+
+
+@app.post("/api/watch/run")
+def watch_run(limit: int | None = None, all_companies: bool = False) -> dict:
+    """Poll now instead of waiting for the six-hour job."""
+    from . import watch
+
+    out = watch.run(limit=limit, only_due=not all_companies, save=True)
+    # Drop the per-company row payloads; the caller only needs the tallies.
+    for r in out.get("results", []):
+        r.pop("rows", None)
+    return out
 
 
 def _avatar_data_uri() -> str | None:

@@ -1,6 +1,6 @@
 """Company tracker — CRUD operations and querying for the companies table.
 
-This module manages the canonical list of target companies John is monitoring,
+This module manages the canonical list of target companies the owner is monitoring,
 including their career sites, ATS platforms, and check-in schedule.
 """
 

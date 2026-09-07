@@ -145,7 +145,7 @@ def _verdict(competition: float, resume: float, conn: float,
     if competition >= 0.6:
         return ("apply_and_network",
                 f"Competition is high ({competition:.2f}) and you have no warm contact yet. Apply, "
-                "but actively try to source a UMD/PSE alum at the company to follow up through.",
+                "but actively try to source an alum or shared-affiliation contact at the company to follow up through.",
                 0.6)
 
     # 🟢 Low-stakes default.
@@ -166,7 +166,7 @@ def _actions(verdict: str, job: JobPosting, matches: list[ConnectionMatch],
             actions.append(
                 f"Reach out to {top.name} ({top.title or 'contact'} at {company}) for a referral "
                 f"before applying — your warmest tie ({top.relationship}, warmth {top.warmth:.2f}).")
-        actions.append("Send a short, specific referral request (shared UMD/PSE/IEFS background + "
+        actions.append("Send a short, specific referral request (shared school/affiliation background + "
                        "the exact role) — the Phase 6 outreach drafter will template this.")
         actions.append("Once the referral is in, submit the tailored resume from Phase 2.")
     elif verdict == "apply_and_network":
@@ -176,7 +176,7 @@ def _actions(verdict: str, job: JobPosting, matches: list[ConnectionMatch],
             actions.append(f"In parallel, message {top.name} ({top.relationship}) to flag your "
                            "application and ask for an internal nudge.")
         else:
-            actions.append(f"Search LinkedIn for UMD / Pi Sigma Epsilon alums at {company} and "
+            actions.append(f"Search LinkedIn for alumni of your school or student orgs at {company} and "
                            "send a brief intro to build a warm path for follow-up.")
     else:  # cold_apply
         actions.append("Submit your tailored application — cold is fine here.")

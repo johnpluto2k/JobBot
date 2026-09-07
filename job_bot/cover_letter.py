@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import config
+from . import candidate, config
 from .jd_models import JobPosting
 from .writing_style import COVER_LETTER_STRUCTURE, STYLE_RULES, company_values_hint
 
@@ -24,12 +24,15 @@ def _top_experience(profile: dict, job: JobPosting) -> dict | None:
 
 def _template(profile: dict, job: JobPosting) -> str:
     personal = profile.get("personal", {})
-    name = personal.get("name") or "John Bae"
+    name = candidate.name(profile)
     company = job.company or "your team"
     title = job.title or "the role"
     edu = (profile.get("education") or [{}])[0]
     grad = edu.get("graduation_date") or "2027"
-    major = edu.get("major") or "Accounting and Information Science"
+    major = candidate.major(profile) or "motivated"
+    school = candidate.school(profile)
+    school_phrase = f" at {school}" if school else ""
+    cpa = "account" in major.lower()
 
     matched = [k for k in job.required_keywords[:5]]
     skills_phrase = ", ".join(matched[:3]) or "audit, data analysis, and internal controls"
@@ -42,16 +45,16 @@ def _template(profile: dict, job: JobPosting) -> str:
         exp_line = f" At {org}, I {b[0].lower() + b[1:] if b else 'delivered measurable results'}."
 
     coursework = ", ".join((edu.get("relevant_coursework") or [])[:3])
-    course_line = (f" Coursework in {coursework} backs this up, and I'm on a "
-                   "CPA-eligible academic track." if coursework else
-                   " I'm on a CPA-eligible academic track.")
+    cpa_tail = ", and I'm on a CPA-eligible academic track" if cpa else ""
+    course_line = (f" Coursework in {coursework} backs this up{cpa_tail}." if coursework else
+                   (" I'm on a CPA-eligible academic track." if cpa else ""))
 
     today = date.today().strftime("%B %d, %Y")
     return f"""{today}
 
 Dear {company} Hiring Team,
 
-As {_a(major)} {major} student at the University of Maryland graduating in {grad}, the {title} role at {company} lines up directly with what I've been building toward: work at the intersection of accounting, technology, and analytics.
+As {_a(major)} {major} student{school_phrase} graduating in {grad}, the {title} role at {company} lines up directly with what I've been building toward: work at the intersection of accounting, technology, and analytics.
 
 Your posting emphasizes {skills_phrase}, and my experience maps closely to it.{exp_line} I pair financial rigor with a technical, data-driven approach, and I consistently quantify the impact of my work.
 

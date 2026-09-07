@@ -1,6 +1,6 @@
 @echo off
 title Job Bot
-cd /d "C:\ClaudeProjects\Job Bot"
+cd /d "%~dp0"
 
 echo.
 echo   Opening Job Bot in Orca...

@@ -1,4 +1,4 @@
-"""Verified public job-board endpoints for the companies John tracks.
+"""Verified public job-board endpoints for the companies the owner tracks.
 
 Every entry here was probed live on 2026-09-02 and returned real postings.
 Tokens are NOT guessable reliably, so this file is curated data, not inference.

@@ -57,7 +57,7 @@ BUSINESS_LANGUAGE = [
 ]
 
 RESUME_BULLET_RULES = f"""
-Resume bullet rules (the John Bae standard):
+Resume bullet rules (the house standard):
 - Structure: action verb -> what you did -> how you did it -> business impact.
   A strong bullet answers at least three of: what did you do, how did you do it,
   why did it matter, can it be quantified.

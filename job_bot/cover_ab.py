@@ -1,7 +1,7 @@
 """Cover Letter A/B Testing (Recommendation #10).
 
 Generates two genuinely different cover-letter variants for a role and tracks
-which voice earns responses over time, so the system learns John's most
+which voice earns responses over time, so the system learns the owner's most
 effective tone per firm type:
 
   • Variant A — formal + finance-led: leads with accounting rigor, controls, and
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import config
+from . import candidate, config
 from .db import connect
 from .jd_models import JobPosting
 
@@ -33,7 +33,8 @@ def _facts(profile: dict, job: JobPosting) -> dict:
     bullet = (top.get("bullets") or [{}])[0].get("text", "")
     kws = [k for k in (job.required_keywords or [])[:5]]
     return {
-        "name": personal.get("name") or "John Bae",
+        "name": candidate.name(profile),
+        "blurb": candidate.blurb(profile),
         "email": personal.get("email") or "",
         "phone": personal.get("phone") or "",
         "company": job.company or "your team",
@@ -54,7 +55,7 @@ def _variant_formal_finance(f: dict) -> str:
 
 Dear {f['company']} Hiring Team,
 
-I am writing to apply for the {f['title']} position. As an Accounting and Information Science student at the University of Maryland graduating in {f['grad']}, I have built disciplined strengths in {f['kw']} — the foundation this role demands, and the same rigor I am carrying toward the CPA.
+I am writing to apply for the {f['title']} position. As {f['blurb']}, I have built disciplined strengths in {f['kw']} — the foundation this role demands.
 
 Your posting emphasizes {f['kw']}, and my record maps directly to it.{exp} I bring a controls-minded, detail-first approach and consistently document and quantify the impact of my work.
 
@@ -74,7 +75,7 @@ def _variant_conversational_tech(f: dict) -> str:
 
 Hi {f['company']} team,
 
-I'm excited about the {f['title']} role — it sits right where I've been pointing my career: the intersection of accounting and data. I'm a UMD Accounting + Information Science student (graduating {f['grad']}), and I like solving control and risk problems with analytics, not just spreadsheets.
+I'm excited about the {f['title']} role — it sits right where I've been pointing my career: the intersection of accounting and data. I'm {f['blurb']}, and I like solving control and risk problems with analytics, not just spreadsheets.
 
 What caught my eye is your focus on {f['kw']}.{exp} I move quickly, ask good questions, and care about getting the numbers — and the story behind them — right.
 
@@ -116,8 +117,8 @@ def _llm_variant(f: dict, style: str, angle: str) -> str:
             if style == "formal" else
             "warm and conversational, leading with data/analytics and the information-science angle")
     prompt = (
-        f"Write a one-page cover letter ({3} short paragraphs) for {f['name']}, a UMD "
-        f"Accounting + Information Science student (grad {f['grad']}) applying to the "
+        f"Write a one-page cover letter ({3} short paragraphs) for {f['name']}, "
+        f"{f['blurb']}, applying to the "
         f"{f['title']} role at {f['company']}. Voice: {tone}. Work in these terms naturally: "
         f"{f['kw']}. Use only real facts; invent nothing. Return only the letter."
     )

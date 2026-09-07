@@ -3,8 +3,9 @@
 # Claude Code renames its own tab as the conversation goes on.
 
 $ErrorActionPreference = 'SilentlyContinue'
-$Root     = 'C:\ClaudeProjects\Job Bot'
-$Selector = 'path:C:/ClaudeProjects/Job Bot'
+# The repo is wherever this script lives; Orca selects worktrees by forward-slash path.
+$Root     = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$Selector = 'path:' + ($Root -replace '\\', '/')
 
 function Get-LiveTerminals {
     try { (& orca terminal list --json 2>$null | ConvertFrom-Json).result.terminals } catch { @() }

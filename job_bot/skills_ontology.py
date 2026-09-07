@@ -118,7 +118,7 @@ KNOWN_COMPANIES: dict[str, str] = {
     "apple": "Apple", "netflix": "Netflix", "nvidia": "NVIDIA",
     "stripe": "Stripe", "plaid": "Plaid", "robinhood": "Robinhood", "block": "Block",
     "xometry": "Xometry",
-    # Mid-tier / regional accounting + firms John actually applied to (from his inbox)
+    # Mid-tier / regional accounting + firms the owner actually applied to (from their inbox)
     "rsm": "RSM", "andersen": "Andersen", "andersentax": "Andersen",
     "eisneramper": "EisnerAmper", "cohnreznick": "CohnReznick", "baker tilly": "Baker Tilly",
     "bakertilly": "Baker Tilly", "cherry bekaert": "Cherry Bekaert", "cherrybekaert": "Cherry Bekaert",
@@ -126,7 +126,7 @@ KNOWN_COMPANIES: dict[str, str] = {
     "uhy": "UHY", "cerity partners": "Cerity Partners", "ceritypartners": "Cerity Partners",
     "tighe & bond": "Tighe & Bond", "tighebond": "Tighe & Bond", "tighe and bond": "Tighe & Bond",
     "alvarez and marsal": "Alvarez & Marsal",
-    # Corporates / banks John applied to
+    # Corporates / banks the owner applied to
     "citi": "Citi", "citigroup": "Citi", "wells fargo": "Wells Fargo", "raytheon": "Raytheon",
     "rtx": "Raytheon", "nissan": "Nissan", "insulet": "Insulet", "comcast": "Comcast",
     "pepsico": "PepsiCo", "federal reserve": "Federal Reserve Bank",

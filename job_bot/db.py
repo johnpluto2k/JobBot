@@ -249,6 +249,14 @@ def _migrate(con: sqlite3.Connection) -> None:
     con.commit()
 
 
+def connect_readonly() -> sqlite3.Connection:
+    """Open existing data without creating directories, tables, or migrations."""
+    con = sqlite3.connect(DB_PATH.resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA query_only=ON")
+    return con
+
+
 def connect() -> sqlite3.Connection:
     config.ensure_dirs()
     # Two background jobs now write on their own schedule - the 15-minute Gmail

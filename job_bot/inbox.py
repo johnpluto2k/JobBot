@@ -285,7 +285,7 @@ def record_email(received_at: str, sender: str, subject: str, body: str = "",
     # With no anchoring and no row cap, a Codecademy promo detected as "Itr"
     # rewrote MITRE and Citrin Cooperman, and a Hilton blast detected as "EY"
     # rewrote Morgan Stanley, Berkley, Eagle Eye, ICEYE and Kearney - 46 postings
-    # John never applied to were left marked 'offer', in place, unrecoverably.
+    # the owner never applied to were left marked 'offer', in place, unrecoverably.
     # Match on the same canonical name the applications funnel uses, and refuse
     # to touch anything if one email somehow still resolves to a wide blast.
     matches = _matching_jobs(con, result["company"])
@@ -297,7 +297,7 @@ def record_email(received_at: str, sender: str, subject: str, body: str = "",
             matches = []
         else:
             # Only ever move a job FORWARD. A "thank you for applying" receipt
-            # hints 'networking', which used to overwrite the 'applied' John had
+            # hints 'networking', which used to overwrite the 'applied' the owner had
             # just logged through intake - a downgrade in the tracker UI.
             hint_rank = STATUS_RANK.get(result["status_hint"], 0)
             ids = [m["id"] for m in matches
@@ -332,7 +332,7 @@ def triage(emails: list[dict], drop_other: bool = False) -> list[dict]:
     for e in emails:
         # Fold every thread participant into the classification text so company
         # detection can resolve a thread by its recruiter's domain even when the
-        # latest message we picked is one John sent. Stored fields are unchanged.
+        # latest message we picked is one the owner sent. Stored fields are unchanged.
         body = e.get("body", "")
         parts = e.get("participants", "")
         text = f"{body}\n{parts}".strip() if parts else body

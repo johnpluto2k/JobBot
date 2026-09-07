@@ -5,8 +5,8 @@
 grew a private copy of master_profile.json and job_bot.db. Two copies then drifted
 in opposite directions:
 
-  canonical  C:\\ClaudeProjects\\Job Bot\\data\\master_profile.json      (what the app reads)
-  phantom    ...\\orca\\workspaces\\Job Bot\\resume-adjuster\\data\\...  (edited 2026-08-31)
+  canonical  <primary checkout>/data/master_profile.json    (what the app reads)
+  phantom    <a linked worktree>/data/master_profile.json   (edited 2026-08-31)
 
 Neither is a superset, so copying either way loses real data:
 
@@ -41,8 +41,17 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-CANONICAL = Path(r"C:\ClaudeProjects\Job Bot\data\master_profile.json")
-PHANTOM = Path(r"C:\Users\yohan\orca\workspaces\Job Bot\resume-adjuster\data\master_profile.json")
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from job_bot import config  # noqa: E402
+
+# Usage: python scripts/merge_split_profiles.py <path to the stray master_profile.json>
+# The canonical profile is the one config resolves (the primary checkout's data/).
+CANONICAL = config.PROFILE_JSON
+if len(sys.argv) < 2:
+    raise SystemExit("usage: merge_split_profiles.py <path to the other master_profile.json>")
+PHANTOM = Path(sys.argv[1])
 
 
 def _key(entry: dict) -> tuple:

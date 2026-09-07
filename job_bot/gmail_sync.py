@@ -64,7 +64,7 @@ def normalize_thread(thread: dict) -> dict:
 
     For a multi-message conversation we classify off the LATEST inbound (recruiter)
     message — that carries the current status — while detecting the company across
-    every participant in the thread (so a reply John sent to `x@deloitte.com` still
+    every participant in the thread (so a reply the owner sent to `x@deloitte.com` still
     resolves to Deloitte). Falls back to the first/only message for single-shot mail.
     """
     msgs = thread.get("messages") or thread.get("relatedMessages") or []

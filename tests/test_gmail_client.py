@@ -82,7 +82,7 @@ def test_nested_multipart_and_html_fallback():
                 "parts": [{
                     "mimeType": "text/html",
                     "body": {"data": _b64(
-                        "<html><style>p{}</style><body><p>Hello <b>John</b>,"
+                        "<html><style>p{}</style><body><p>Hello <b>Ada</b>,"
                         "</p><p>next steps</p></body></html>")},
                 }],
             }],
@@ -90,7 +90,7 @@ def test_nested_multipart_and_html_fallback():
     }
     rec = message_to_record(msg)
     assert "<" not in rec["plaintextBody"]
-    assert "Hello John" in rec["plaintextBody"].replace("  ", " ")
+    assert "Hello Ada" in rec["plaintextBody"].replace("  ", " ")
     assert "next steps" in rec["plaintextBody"]
     print("ok: nested multipart + html fallback")
 
@@ -117,7 +117,7 @@ def test_thread_to_normalized_record():
 
 
 def test_outbound_reply_ignored_for_status():
-    """A thread ending in John's SENT reply must classify off the recruiter's
+    """A thread ending in the owner's SENT reply must classify off the recruiter's
     last inbound message, not the reply."""
     thread = {
         "id": "t-conv",
@@ -125,7 +125,7 @@ def test_outbound_reply_ignored_for_status():
             _msg("Recruiter <r@ey.com>", "EY phone screen",
                  "Wed, 01 Jul 2026 10:00:00 +0000",
                  "We'd like to schedule a phone screen with you.", msg_id="m1"),
-            _msg("John Bae <john@example.com>", "Re: EY phone screen",
+            _msg("Ada Lovelace <ada@example.com>", "Re: EY phone screen",
                  "Wed, 01 Jul 2026 11:00:00 +0000",
                  "Sounds great, I'm available Thursday.",
                  labels=["SENT"], to="r@ey.com", msg_id="m2"),

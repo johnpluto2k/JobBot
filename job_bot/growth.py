@@ -1,4 +1,4 @@
-"""Automated growth plan — turns John's skill gaps + where he's actually applying
+"""Automated growth plan — turns the owner's skill gaps + where they're actually applying
 into concrete, prioritized next moves: certifications to pursue, portfolio
 projects to build, and tailored resume variants to maintain.
 
@@ -100,7 +100,7 @@ GAP_PROJECTS: dict[str, str] = {
             "citing the relevant ASC.",
 }
 
-# Map John's stated target roles to fields so the plan always covers his goals,
+# Map the owner's stated target roles to fields so the plan always covers their goals,
 # even in fields he hasn't applied to yet.
 TARGET_ROLE_FIELDS = {
     "it audit": "IT Audit / Tech Risk", "technology risk": "IT Audit / Tech Risk",
@@ -117,7 +117,7 @@ def _pretty(skill: str) -> str:
 
 
 def _target_fields(profile: dict) -> list[str]:
-    """Fields John says he's targeting (from his profile)."""
+    """Fields the owner says they're targeting (from their profile)."""
     out: list[str] = []
     for role in profile.get("targets", {}).get("target_roles", []):
         low = role.lower()
@@ -127,12 +127,12 @@ def _target_fields(profile: dict) -> list[str]:
     return out
 
 
-def build_plan(profile: dict | None = None) -> dict:
+def build_plan(profile: dict | None = None, *, applications: list[dict] | None = None) -> dict:
     """Compute the prioritized growth plan from the live profile + applications."""
     profile = profile or load_profile()
     have = candidate_skills(profile_text(profile))
 
-    apps = build_applications()
+    apps = applications if applications is not None else build_applications()
     applied_fields: dict[str, int] = {}
     for a in apps:
         applied_fields[a["field"]] = applied_fields.get(a["field"], 0) + 1

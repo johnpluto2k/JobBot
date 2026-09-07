@@ -26,7 +26,7 @@ the yaml source. Formatting bugs live in the render, not the source.
 4. No rendering artifacts: broken glyphs, orphaned headers, inconsistent fonts,
    misaligned dates, stray template placeholders ({{...}}, Typst/LaTeX residue).
 
-**Formatting (business track must be structurally indistinguishable from John's
+**Formatting (business track must be structurally indistinguishable from the candidate's
 approved resumes in `documents/Professional Development/Resumes/` — diff against
 the most recent one):**
 5. Consistent date format throughout (mixing "May 2027" and "05/2027" is a defect).
@@ -62,5 +62,5 @@ WORST THREE BULLETS: <verbatim, with one-line fix direction each — even on PAS
 ```
 
 PASS requires: zero kill defects, zero suspected fabrications, ≤ 2 minor
-defects. Be harsh — a false PASS costs John an interview; a false FAIL costs
+defects. Be harsh — a false PASS costs the candidate an interview; a false FAIL costs
 one more iteration. When torn, FAIL with specifics.

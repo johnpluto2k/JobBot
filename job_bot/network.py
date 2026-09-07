@@ -37,7 +37,8 @@ def main() -> None:
     ap.add_argument("--role", default="this role")
     ap.add_argument("--file", type=Path, help="Infer company/role from a JD file")
     ap.add_argument("--text", help="Infer company/role from inline JD text")
-    ap.add_argument("--candidate", default="John")
+    ap.add_argument("--candidate", default=None,
+                    help="first name for sign-offs (default: from the profile)")
     ap.add_argument("--max", type=int, default=3, help="Max contacts to draft for")
     ap.add_argument("--all", action="store_true",
                     help="Draft a referral request for EVERY warm contact (referral pack)")
@@ -86,7 +87,7 @@ def main() -> None:
         print("\n No warm contacts on file for this company.")
         print(" Import your LinkedIn export: "
               "python -m job_bot.decide --import-connections Connections.csv")
-        print(" Then search LinkedIn for UMD / Pi Sigma Epsilon alums there.")
+        print(" Then search LinkedIn for alumni of your school or student orgs there.")
         return
     print(f" Cadence: send day 0, follow up at +{plan['cadence_days'][1]} and "
           f"+{plan['cadence_days'][2]} days.\n")

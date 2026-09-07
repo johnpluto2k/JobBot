@@ -75,6 +75,11 @@ export function SyncIndicator() {
           )}
         </span>
       )}
+      {/invalid_grant|expired|revoked/i.test(status.last_error ?? '') && (
+        <a href="/auth/login" className="font-medium text-primary underline underline-offset-4">
+          Reconnect Google
+        </a>
+      )}
       <button
         onClick={syncNow}
         disabled={busy}

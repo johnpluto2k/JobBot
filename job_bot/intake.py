@@ -1,6 +1,6 @@
-"""Manual job intake — log a job John found and applied to.
+"""Manual job intake — log a job the owner found and applied to.
 
-This is the primary workflow in the company-first tracker model: John finds
+This is the primary workflow in the company-first tracker model: the owner finds
 jobs on LinkedIn, Indeed, Jobright, etc., applies manually, then logs them
 here with a company, title, and portal. The bot links it to the companies
 table and tracks the application.
@@ -21,7 +21,7 @@ from . import applications
 from .db import connect
 
 
-# Valid portals (job boards where John searches)
+# Valid portals (job boards where the owner searches)
 VALID_PORTALS = {
     "indeed", "linkedin", "jobright", "glassdoor", "ziprecruiter",
     "workday", "greenhouse", "handshake", "smith", "email", "other"
@@ -39,13 +39,13 @@ def log_job(
     status: str = "applied",
     notes: str | None = None,
 ) -> dict:
-    """Log a job John found and applied to manually.
+    """Log a job the owner found and applied to manually.
 
     Args:
         url: The job posting URL
         company_name: Company name (will be normalized)
         title: Job title
-        portal: Where John found it (indeed, linkedin, jobright, etc.)
+        portal: Where the owner found it (indeed, linkedin, jobright, etc.)
         status: Application status (applied, saved, rejected, offer)
         notes: Optional notes about the application
 

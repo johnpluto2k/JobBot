@@ -2,10 +2,10 @@
 stand with everywhere I applied".
 
 The raw data is spread across, and disagrees between, several tables: `jobs`
-(rows John imported from his tracker + Gmail, with duplicates and inconsistent
+(rows the owner imported from their tracker + Gmail, with duplicates and inconsistent
 company spellings), `tracked_emails` (the comprehensive Gmail outcome history),
 `interviews`, `rejections`, and `offers`. This module reconciles them into ONE
-deduped, name-normalized list — one row per company John actually applied to —
+deduped, name-normalized list — one row per company the owner actually applied to —
 with a single derived status, so every number in the dashboard can be computed
 from the same place and nothing is "off".
 
@@ -26,9 +26,10 @@ can show how many applications got to an interview regardless of final outcome.
 from __future__ import annotations
 
 import re
+from contextlib import closing
 from datetime import date, datetime, timedelta
 
-from .db import connect
+from .db import connect, connect_readonly
 
 # Days of silence after the last contact before an open application is "ghosted".
 GHOST_DAYS = 45
@@ -72,14 +73,14 @@ _EXCLUDE = {"the scion group", "scion", "university view apartments", "universit
             "invalidemail", "workday", "msg", "campuscareers", "jobalerts", "systemmessage",
             "recruitix", ""}
 
-# tracked_emails categories that prove John actually applied (not just marketing).
+# tracked_emails categories that prove the owner actually applied (not just marketing).
 #
 # `recruiter_reply` is deliberately NOT here. The inbox classifier hands out that
 # label on loose cues ("talent acquisition" in the sender, "connect" in a body),
 # so a Coinbase crypto newsletter and an IBM event-registration receipt both
 # became "applications" in the funnel. A recruiter reply only counts as applied
 # evidence when its subject is an actual application confirmation
-# (_CONFIRMATION_RE) or the company already has a job row John logged.
+# (_CONFIRMATION_RE) or the company already has a job row the owner logged.
 _STRONG_APPLIED_CATS = ("rejection", "interview_invite", "assessment", "offer")
 _APPLIED_CATS = _STRONG_APPLIED_CATS  # kept for callers that import the old name
 
@@ -122,7 +123,7 @@ _FIELD_SIGNALS: list[tuple[str, list[str]]] = [
 
 
 # Fallback field for companies whose application emails never named the role
-# (generic ATS confirmations). Based on the role John actually applied to there.
+# (generic ATS confirmations). Based on the role the owner actually applied to there.
 _COMPANY_FIELD_HINTS = {
     "Goldman Sachs": "Internal Audit", "JPMorgan": "Risk & Compliance", "Amazon": "Tax",
     "EY": "Audit & Assurance", "USAA": "Internal Audit", "Federal Reserve Bank": "Internal Audit",
@@ -136,7 +137,7 @@ _COMPANY_FIELD_HINTS = {
 
 
 def classify_field(title: str | None, extra: str = "") -> str:
-    """Map a role title (and optional extra text) to one of John's career fields."""
+    """Map a role title (and optional extra text) to one of the owner's career fields."""
     hay = f"{title or ''} {extra}".lower()
     for field, pats in _FIELD_SIGNALS:
         if any(p in hay for p in pats):
@@ -189,9 +190,13 @@ def _ref_date(con) -> date:
         return date.today()
 
 
-def build_applications(ref_date: date | None = None) -> list[dict]:
-    """Return one reconciled record per company John applied to."""
-    con = connect()
+def build_applications(ref_date: date | None = None, *, read_only: bool = False) -> list[dict]:
+    """Return one reconciled record per company the owner applied to."""
+    with closing(connect_readonly() if read_only else connect()) as con:
+        return _build_applications(con, ref_date)
+
+
+def _build_applications(con, ref_date: date | None) -> list[dict]:
     ref = ref_date or _ref_date(con)
     ghost_cutoff = (ref - timedelta(days=GHOST_DAYS)).isoformat()
 
@@ -210,7 +215,7 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
             "last_applied": None, "last_rejected": None, "undated_rejection": False,
             # Ledger rows all carry the import date (2026-02-15 for 100 rows), so
             # a ledger rejection can't be ordered against emails. It is only
-            # superseded by a job John logged through intake after that date.
+            # superseded by a job the owner logged through intake after that date.
             "ledger_rejected_at": None, "last_tracker": None,
         })
 
@@ -248,7 +253,7 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
         a["any_applied_signal"] = True
         d = _d(r["date_posted"])
         if r["site"] == "tracker":
-            # Logged by John through intake - a real application date.
+            # Logged by the owner through intake - a real application date.
             if r["status"] == "rejected":
                 rejected_on(a, r["date_posted"])
             else:
@@ -300,7 +305,6 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
         a = slot(r["company"])
         if a:
             a["has_offer"] = True
-    con.close()
 
     out = []
     for a in apps.values():
@@ -333,7 +337,7 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
         rec = {
             "company": a["company"], "status": status,
             "reached_interview": a["reached_interview"],
-            # True when an earlier cycle at this company was rejected and John
+            # True when an earlier cycle at this company was rejected and the owner
             # has since applied again - the UI can show the history without the
             # old outcome hiding the live application.
             "reapplied": reapplied,

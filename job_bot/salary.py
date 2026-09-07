@@ -1,9 +1,9 @@
 """Salary Intelligence Layer (Recommendation #5).
 
-Gives a market salary range for a role + location + experience level so John can
+Gives a market salary range for a role + location + experience level so the owner can
 sanity-check an offer or prep a negotiation. Two layers, degrading gracefully:
 
-  1. A curated baseline table of US-average total-comp ranges for the roles John
+  1. A curated baseline table of US-average total-comp ranges for the roles the owner
      targets (Big 4 audit/risk, IB analyst, data/business analyst, etc.), keyed
      by experience level. Always available offline.
   2. Live market points — Glassdoor / Levels.fyi / LinkedIn figures fed in via
@@ -79,7 +79,7 @@ def role_key(role: str) -> str:
     for alias, key in ROLE_ALIASES:
         if alias in low:
             return key
-    return "financial analyst"  # safe default for John's finance-leaning search
+    return "financial analyst"  # safe default for the owner's finance-leaning search
 
 
 def estimate(role: str, location: str | None = None, level: str = "new_grad", *,

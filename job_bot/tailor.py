@@ -11,7 +11,7 @@ from __future__ import annotations
 import re as _re
 from datetime import date as _date
 
-from . import config
+from . import candidate, config
 from .jd_models import JobPosting
 from .resume_models import TailoredEducation, TailoredResume, TailoredRole
 from .similarity import contains_phrase, tfidf_cosine
@@ -132,8 +132,10 @@ def _summary(profile: dict, job: JobPosting, top_skills: list[str]) -> str:
     grad = edu.get("graduation_date") or ""
     role = job.role_type or job.title or "the role"
     skills = ", ".join(top_skills[:4]) or "data analysis and finance"
-    major = edu.get("major") or "Accounting & Information Science"
-    return (f"{major} student (UMD, graduating {grad}) targeting {role}. "
+    major = candidate.major(profile) or "Motivated"
+    school = candidate.school(profile)
+    where = f"{school}, graduating {grad}" if school else f"graduating {grad}"
+    return (f"{major} student ({where}) targeting {role}. "
             f"Strengths in {skills} — combining technical skills with client "
             f"service, compliance, & business problem-solving.").strip()
 

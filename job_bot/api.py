@@ -18,6 +18,7 @@ the CORS allowance.
 from __future__ import annotations
 
 import base64
+from datetime import date
 import json
 import logging
 import mimetypes
@@ -29,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import applications, config, gmail_client, google_auth
+from . import applications, candidate, config, gmail_client, google_auth
 from .db import DB_PATH, connect
 
 log = logging.getLogger("job_bot.api")
@@ -491,8 +492,8 @@ def _tailor_prose(job) -> str:
         f"Preferred keywords: {', '.join(job.preferred_keywords) or 'none'}\n"
     )
     prompt = (
-        "Write a tight 2-3 sentence summary of this role for John Bae, a job "
-        "seeker deciding whether/how to tailor his resume to it. Use ONLY the "
+        f"Write a tight 2-3 sentence summary of this role for {candidate.name()}, a job "
+        "seeker deciding whether/how to tailor their resume to it. Use ONLY the "
         "facts given below; do not invent anything.\n\n" + facts
     )
     msg = client.messages.create(model=config.ANTHROPIC_MODEL, max_tokens=200,
@@ -610,7 +611,8 @@ def cycles() -> dict:
         else {}
     )
     edu = (profile_data.get("education") or [{}])[0]
-    grad = newgrad.parse_grad_date(edu.get("graduation_date") or "May 2027")
+    # No profile yet: assume a graduation next May so the cycle picker still renders.
+    grad = newgrad.parse_grad_date(edu.get("graduation_date") or f"May {date.today().year + 1}")
     return {
         "graduation_date": grad.strftime("%B %Y"),
         "cycles": newgrad.available_cycles(grad),
@@ -1054,7 +1056,7 @@ class IntakeRequest(BaseModel):
 
 @app.post("/api/intake")
 def intake(req: IntakeRequest) -> dict:
-    """Log a job John found and applied to manually.
+    """Log a job the owner found and applied to manually.
 
     Returns: { id, company_id, company_name, job_title, url, status, portal, logged_at }
     or { error: "..." } if validation fails.

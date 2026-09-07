@@ -6,7 +6,7 @@ discussed. Template-based by default; Claude-drafted when a key is present.
 
 from __future__ import annotations
 
-from . import config
+from . import candidate, config
 
 
 def generate_thankyou(profile: dict, company: str, role: str,
@@ -24,7 +24,7 @@ def generate_thankyou(profile: dict, company: str, role: str,
 
 def _template(profile: dict, company: str, role: str,
               interviewer: str | None, topics: list[str] | None) -> str:
-    name = profile.get("personal", {}).get("name", "John Bae")
+    name = candidate.name(profile)
     first = name.split()[0]
     who = interviewer.split()[0] if interviewer else "team"
     greeting = f"Hi {interviewer.split()[0]}," if interviewer else f"Hi {company} team,"
@@ -49,7 +49,7 @@ def _llm_thankyou(profile: dict, company: str, role: str,
     import anthropic
 
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    name = profile.get("personal", {}).get("name", "John Bae")
+    name = candidate.name(profile)
     prompt = (
         f"Write a concise, genuine post-interview thank-you email from {name} to "
         f"{interviewer or 'the interview team'} for the {role} role at {company}. "

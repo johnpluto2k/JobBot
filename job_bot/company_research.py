@@ -1,13 +1,13 @@
 """Company Research Brief (Recommendation #8).
 
 Builds a one-page pre-interview brief for a target company: overview, ATS /
-hiring-process intel, "why this firm" angles tuned to John's background, likely
+hiring-process intel, "why this firm" angles tuned to the owner's background, likely
 interview topics, the warm contacts already in the network, recent news, and
 smart questions to ask.
 
 Three layers, each degrading gracefully:
   1. Curated firm knowledge base (offline, always available) — real hiring
-     process + interview-style intel for the firms John targets.
+     process + interview-style intel for the firms the owner targets.
   2. Local context from the SQLite store — open roles, warm connections, and any
      prior decision/rejection history for the company.
   3. Recent news — supplied by the caller (web search / a news MCP / pasted
@@ -21,12 +21,12 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import config
+from . import candidate, config
 from .db import connect
 from .skills_ontology import COMPANY_ATS, KNOWN_COMPANIES
 
 # --- Curated firm knowledge base ------------------------------------------------
-# Real hiring-process intel for the firms in John's target set. Keys are matched
+# Real hiring-process intel for the firms in the owner's target set. Keys are matched
 # case-insensitively against the canonical company name.
 FIRM_KB: dict[str, dict] = {
     "Deloitte": {
@@ -220,13 +220,13 @@ def _llm_narrative(brief: dict) -> str:
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
     news = "\n".join(f"- {n}" for n in brief["recent_news"]) or "(none provided)"
     prompt = (
-        f"You are prepping John Bae (UMD Accounting + Information Science) for an interview "
+        f"You are prepping {candidate.name()}, {candidate.blurb()}, for an interview "
         f"for the {brief['role']} role at {brief['company']} ({brief['type']}).\n"
         f"Firm values: {', '.join(brief['values'])}.\n"
         f"Likely topics: {', '.join(brief['likely_topics'])}.\n"
         f"Recent news headlines:\n{news}\n\n"
         "Write a tight 150-word pre-interview brief: what the firm is focused on right now, "
-        "how John should frame his 'why this firm', and one concrete talking point that "
+        "how they should frame their 'why this firm', and one concrete talking point that "
         "connects recent news to the role. Use only the facts given; do not invent specifics."
     )
     msg = client.messages.create(model=config.ANTHROPIC_MODEL, max_tokens=400,
@@ -272,7 +272,7 @@ def format_brief(b: dict) -> str:
             title = f" — {c['title']}" if c.get("title") else ""
             lines.append(f"  • {c['name']}{title}{tag}  (warmth {c.get('warmth','?')})")
     else:
-        lines.append("\nWARM CONTACTS HERE: none on file — consider a cold UMD/PSE outreach.")
+        lines.append("\nWARM CONTACTS HERE: none on file — consider a cold alumni outreach.")
 
     if b["open_roles"]:
         lines.append("\nOPEN ROLES ON FILE")

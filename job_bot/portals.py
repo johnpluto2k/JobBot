@@ -15,7 +15,7 @@ pipeline, scoring, legitimacy check, and Action Center as scraped roles.
 
 Big-4 / large-bank employers run Workday or Taleo, which have no clean public
 feed; for those, portal_hint() returns the direct portal URL + strategy instead,
-so the tool still tells John exactly where to look.
+so the tool still tells the owner exactly where to look.
 
 The registry lives in code (DEFAULT_PORTALS) and can be extended without a code
 change via a user-editable JSON file at data/portals.json — add a company's
@@ -34,7 +34,7 @@ from . import config
 # token: the board slug in the ATS URL. VERIFY before trusting counts — a wrong
 # token simply 404s and is skipped, never crashes.
 DEFAULT_PORTALS: list[dict] = [
-    # Firms John actually applied to that run Workday/Taleo (manual portal guidance):
+    # Firms the owner actually applied to that run Workday/Taleo (manual portal guidance):
     {"company": "Deloitte", "ats": "workday",
      "url": "https://apply.deloitte.com/careers/SearchJobs"},
     {"company": "KPMG", "ats": "workday",
@@ -55,7 +55,7 @@ DEFAULT_PORTALS: list[dict] = [
     {"company": "Stripe", "ats": "greenhouse", "token": "stripe"},
 ]
 
-# Roles John cares about — a portal role is kept only if its title matches one.
+# Roles the owner cares about — a portal role is kept only if its title matches one.
 DEFAULT_KEYWORDS = [
     "audit", "risk", "control", "compliance", "assurance", "analyst",
     "accounting", "finance", "cyber", "security", "data",
@@ -93,7 +93,7 @@ import re as _re
 
 # Senior-title markers — a portal role is dropped if its title matches any. Word-
 # boundary anchored so "Lead"/"Head"/"Staff" match at the end of a title too, and
-# roman-numeral levels (III/IV/V) are caught. John is entry-level (new grad).
+# roman-numeral levels (III/IV/V) are caught. the owner is entry-level (new grad).
 _SENIOR_RE = _re.compile(
     r"\b(senior|sr\.?|staff|principal|lead|manager|mgr|director|"
     r"vp|vice president|head|chief|officer|counsel|architect|partner|"

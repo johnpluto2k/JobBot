@@ -15,7 +15,7 @@ import random
 import sys
 from pathlib import Path
 
-from . import config
+from . import candidate, config
 from .ats_engine import load_profile
 from .questions import FIRM_NOTES, filter_questions
 from .rubric import score_answer
@@ -157,8 +157,8 @@ def _llm_mock(profile: dict, firm: str | None, rounds: int) -> None:
     print(f"\n=== LIVE MOCK — interviewer: {persona} ===")
     print("(This requires an interactive terminal; run it directly, not via a pipe.)")
     sys_prompt = (
-        f"You are {persona} conducting a {rounds}-round interview for a UMD Accounting + "
-        "Information Science student targeting audit/tech-risk/analytics. Ask one question at a "
+        f"You are {persona} conducting a {rounds}-round interview for {candidate.blurb(profile)}"
+        f"{(' targeting ' + candidate.focus(profile)) if candidate.focus(profile) else ''}. Ask one question at a "
         "time, react to each answer with a brief follow-up, and at the end give a rubric score."
     )
     messages = [{"role": "user", "content": "Start the interview with your first question."}]

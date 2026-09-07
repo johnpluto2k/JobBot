@@ -1,4 +1,4 @@
-"""Posting legitimacy + liveness — career-ops "Block G", adapted for John.
+"""Posting legitimacy + liveness — career-ops "Block G", adapted for the owner.
 
 Two independent checks that keep low-quality postings out of the pipeline so an
 application is never wasted on a scam or a role that isn't actually open:

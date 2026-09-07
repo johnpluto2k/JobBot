@@ -60,6 +60,36 @@ function ContextStrip({ snap }: { snap: CoachSnapshot }) {
   )
 }
 
+function DataStatus({ snap }: { snap: CoachSnapshot }) {
+  const lastSync = snap.freshness?.last_successful_sync
+  const reconnect = /invalid_grant|expired|revoked/i.test(snap.freshness?.last_error ?? '')
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-card p-3 text-sm">
+      <p className="text-muted-foreground">
+        Last successful Gmail sync: {lastSync ? new Date(lastSync).toLocaleString() : 'unknown'}
+      </p>
+      {(snap.warnings ?? []).map((warning) => (
+        <p key={warning} role="status" className="flex items-start gap-2">
+          <AlertCircle size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--status-amber)' }} />
+          {warning}
+        </p>
+      ))}
+      {reconnect && (
+        <a href="/auth/login" className="inline-flex font-medium text-primary underline underline-offset-4">
+          Reconnect Google to refresh your inbox
+        </a>
+      )}
+      {snap.email_counts && (
+        <p className="text-xs text-muted-foreground">
+          {snap.email_counts.older_unhandled_email} older messages to review ·{' '}
+          {snap.email_counts.automated_acknowledgements} likely automatic acknowledgements.
+          These are kept separate from recent recruiter messages.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function Bubble({ m }: { m: ChatMessage }) {
   const isUser = m.role === 'user'
   return (
@@ -78,7 +108,8 @@ function Bubble({ m }: { m: ChatMessage }) {
 }
 
 export function CoachTab() {
-  const snapshot = useAsync(api.coachSnapshot, [])
+  const [snapshotRevision, setSnapshotRevision] = useState(0)
+  const snapshot = useAsync(api.coachSnapshot, [snapshotRevision])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
@@ -88,6 +119,11 @@ export function CoachTab() {
   // composer for the session — retrying can't fix a missing key.
   const [disabledReason, setDisabledReason] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const timer = setInterval(() => setSnapshotRevision((n) => n + 1), 60_000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -125,6 +161,7 @@ export function CoachTab() {
       setError(String((e as Error).message ?? e))
     } finally {
       setThinking(false)
+      setSnapshotRevision((n) => n + 1)
     }
   }
 
@@ -140,6 +177,8 @@ export function CoachTab() {
         </p>
       </div>
 
+      {snapshot.error && <ErrorNote error={snapshot.error} title="Coaching data could not refresh." />}
+      {snapshot.data && <DataStatus snap={snapshot.data} />}
       {snapshot.data && <ContextStrip snap={snapshot.data} />}
 
       <Card>

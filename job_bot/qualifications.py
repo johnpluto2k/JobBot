@@ -1,6 +1,6 @@
 """Qualification filtering — detect and penalize cert/degree gaps.
 
-When a JD explicitly requires a certification or degree John doesn't have,
+When a JD explicitly requires a certification or degree the owner doesn't have,
 down-rank the job and log the gap. This prevents applications to roles that
 have a hard blocker in the candidate profile.
 
@@ -16,13 +16,13 @@ import json
 import re
 from pathlib import Path
 
-# Known certifications John has or is pursuing (from master_profile.json)
+# Known certifications the owner has or is pursuing (from master_profile.json)
 JOHN_CERTS = {
     "CPA",  # CPA Eligibility (Expected) — not yet obtained
-    # Add as John pursues more: "Security+", "CMMC RP", etc.
+    # Add as the owner pursues more: "Security+", "CMMC RP", etc.
 }
 
-# Degrees John has (from master_profile.json)
+# Degrees the owner has (from master_profile.json)
 JOHN_DEGREES = {
     "Bachelor of Science",
     "BS",
@@ -129,7 +129,7 @@ def extract_required_degrees(text: str) -> dict[str, list[str]]:
 
 
 def check_qualifications(jd_text: str) -> dict:
-    """Analyze a JD for qualification gaps against John's profile.
+    """Analyze a JD for qualification gaps against the owner's profile.
 
     Returns:
     {
@@ -149,12 +149,12 @@ def check_qualifications(jd_text: str) -> dict:
     certs_missing = [c for c in certs["required"] if c not in JOHN_CERTS]
     certs_preferred_missing = [c for c in certs["preferred"] if c not in JOHN_CERTS]
 
-    # Check degree gaps (simple: John has a Bachelor's in Accounting/Info Science)
+    # Check degree gaps (simple: the owner has a Bachelor's in Accounting/Info Science)
     degree_gap = None
     if "Master's" in degrees["required"]:
-        degree_gap = "JD requires Master's degree; John has Bachelor's (5+ years exp may substitute)"
+        degree_gap = "JD requires Master's degree; the owner has Bachelor's (5+ years exp may substitute)"
     elif "PhD" in degrees["required"]:
-        degree_gap = "JD requires PhD; John has Bachelor's"
+        degree_gap = "JD requires PhD; the owner has Bachelor's"
 
     # Scoring: cert gap = -1 per required cert; degree gap = -2
     penalty = len(certs_missing) * 1.0 + len(certs_preferred_missing) * 0.25
@@ -196,9 +196,11 @@ def _extract_block(text: str, marker_pattern: str, window: int, multiline: bool 
 if __name__ == "__main__":
     from pathlib import Path
 
-    # Example: check the business JD (Compliance Analyst)
-    jd_path = Path(
-        r"C:\Users\yohan\AppData\Local\Temp\claude\C--ClaudeProjects-Job-Bot\c7c15a21-4cb0-4e39-a947-60cb3ab0cd86\scratchpad\business_jd.txt"
+    # Example: check the sample JD shipped with the repo (or pass your own path).
+    import sys
+
+    jd_path = Path(sys.argv[1]) if len(sys.argv) > 1 else (
+        Path(__file__).resolve().parent.parent / "data" / "sample_jd_deloitte_itrisk.txt"
     )
     if jd_path.exists():
         with open(jd_path) as f:

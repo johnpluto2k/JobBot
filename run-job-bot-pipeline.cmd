@@ -1,6 +1,6 @@
 @echo off
 title Job Bot - Daily Pipeline
-cd /d "C:\ClaudeProjects\Job Bot"
+cd /d "%~dp0"
 echo ============================================================
 echo   Job Bot - Daily Pipeline
 echo   Finds jobs, tailors resumes, drafts follow-ups, triages

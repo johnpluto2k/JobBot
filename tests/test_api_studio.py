@@ -37,7 +37,7 @@ Bachelor's degree required. Minimum GPA 3.0. 0-2 years of experience.
 
 _PROFILE = {
     "personal": {
-        "name": "John Bae",
+        "name": "Ada Lovelace",
         "email": "john@example.com",
         "phone": "555-555-5555",
         "location": "Washington, DC",

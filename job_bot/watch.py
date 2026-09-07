@@ -1,9 +1,9 @@
-"""Company posting watcher — poll the companies John tracks for NEW openings.
+"""Company posting watcher — poll the companies the owner tracks for NEW openings.
 
 The tracker knows 200+ target companies but nothing was ever watching them; the
 `jobs` table had not gained a row in over a month. This closes that loop: for every
 company with a verified public job-board endpoint, fetch current postings, keep the
-entry-level ones in range of the DMV, score them through the existing pipeline, and
+entry-level ones in range of your home region, score them through the existing pipeline, and
 insert only the ones not already seen.
 
 Why this shape:
@@ -12,7 +12,7 @@ Why this shape:
   free — no content hashing, no separate seen-set. Re-polling a board inserts
   nothing unless a posting genuinely appeared.
 * **Rows land with `site='<platform>'`**, which `applications.build_applications()`
-  does not read (it takes only email/tracker/ledger). A posting John has not applied
+  does not read (it takes only email/tracker/ledger). A posting the owner has not applied
   to therefore cannot leak into the applications funnel. That separation is
   deliberate — the funnel is what the coach trusts.
 * **`next_check_due` is the work queue.** `companies.due_for_check()` and
@@ -31,6 +31,7 @@ CLI:
 """
 from __future__ import annotations
 
+import os as _os
 import re as _re
 import time
 from datetime import datetime
@@ -46,9 +47,10 @@ USER_AGENT = "Mozilla/5.0 (compatible; JobBot/1.0; personal job search)"
 
 # --- Location filter ---------------------------------------------------------
 # portals.scan() has no location filter at all, which is why a live Stripe scan
-# returns London, Dublin and Singapore roles. John is in the DC-Maryland-Virginia
-# area and is not relocating abroad for an internship.
-DMV_MARKERS = (
+# returns London, Dublin and Singapore roles. The default home region is the
+# DC-Maryland-Virginia area; set JOB_BOT_HOME_MARKERS (comma-separated city/state
+# words) to describe yours. Remote and nationwide postings always pass.
+_DEFAULT_HOME_MARKERS = (
     "washington", "d.c.", "dc", "district of columbia", "maryland", "md",
     "virginia", "va", "baltimore", "arlington", "alexandria", "mclean", "reston",
     "tysons", "bethesda", "rockville", "silver spring", "columbia", "annapolis",
@@ -76,13 +78,17 @@ FOREIGN_MARKERS = (
 # codes are the whole reason: a plain `"va" in location` check accepted
 # "Mumbai Shivaji Park" (shi-VA-ji), which is the same substring bug that let
 # "EY" match "Morgan Stanley" in the email classifier.
-_DMV_RE = _re.compile(r"\b(?:" + "|".join(_re.escape(m) for m in DMV_MARKERS) + r")\b", _re.I)
+HOME_MARKERS = tuple(
+    m.strip().lower() for m in _os.getenv("JOB_BOT_HOME_MARKERS", "").split(",") if m.strip()
+) or _DEFAULT_HOME_MARKERS
+DMV_MARKERS = HOME_MARKERS  # backward-compatible alias
+_DMV_RE = _re.compile(r"\b(?:" + "|".join(_re.escape(m) for m in HOME_MARKERS) + r")\b", _re.I)
 _FOREIGN_RE = _re.compile(r"\b(?:" + "|".join(_re.escape(m) for m in FOREIGN_MARKERS) + r")\b", _re.I)
 _NATIONAL = {"united states", "us", "usa", "u s", "nationwide", "multiple locations"}
 
 
 def location_ok(location: str, dmv_only: bool = True) -> bool:
-    """True if a posting is somewhere John could actually take the job.
+    """True if a posting is somewhere the candidate could actually take the job.
 
     Blank locations are kept - a missing field is not evidence of a bad location,
     and dropping them would silently hide most Workday rows.
@@ -91,7 +97,7 @@ def location_ok(location: str, dmv_only: bool = True) -> bool:
     if not low:
         return True
     # Foreign check comes FIRST. "Toronto, Remote-Canada" contains "remote" but is
-    # not a job John can take, and an early remote check used to let it through.
+    # not a job the candidate can take, and an early remote check used to let it through.
     if _FOREIGN_RE.search(low):
         return False
     if "remote" in low or "anywhere" in low:
@@ -416,7 +422,7 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=None, help="max companies this pass")
     ap.add_argument("--all", action="store_true", help="ignore next_check_due")
     ap.add_argument("--dry-run", action="store_true", help="fetch but do not save")
-    ap.add_argument("--anywhere", action="store_true", help="skip the DMV location filter")
+    ap.add_argument("--anywhere", action="store_true", help="skip the home-region location filter")
     args = ap.parse_args()
 
     out = run(limit=args.limit, only_due=not args.all, save=not args.dry_run,

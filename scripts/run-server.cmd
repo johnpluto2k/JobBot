@@ -1,6 +1,7 @@
 @echo off
 title Job Bot Server
-cd /d "C:\ClaudeProjects\Job Bot"
+REM Runs from the repo this script lives in - no hardcoded path.
+cd /d "%~dp0.."
 
 echo.
 echo   === Job Bot backend ===
@@ -36,7 +37,7 @@ cd ..
 goto :run
 
 :build_failed
-cd /d "C:\ClaudeProjects\Job Bot"
+cd /d "%~dp0.."
 echo.
 echo   [!] The UI build failed - starting with the previously built version.
 echo.

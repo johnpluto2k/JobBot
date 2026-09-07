@@ -1,7 +1,7 @@
 """Negotiation script generator — career-ops "negotiation frameworks", adapted.
 
 career-ops ships salary-negotiation frameworks, geographic-discount pushback, and
-competing-offer leverage. John already has salary intelligence (salary.py) and
+competing-offer leverage. the owner already has salary intelligence (salary.py) and
 COL-adjusted offer comparison (offers.py); this layer turns those numbers into
 paste-ready *scripts* he can actually say/send:
 

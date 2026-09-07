@@ -18,7 +18,7 @@ from . import config
 from .db import connect
 from .skills_ontology import KNOWN_COMPANIES
 
-# Relationship affinity for John specifically — warmer ties first.
+# Relationship affinity for the owner specifically — warmer ties first.
 REL_RANK = {"recruiter": 5, "pse": 4, "iefs": 4, "terptax": 4, "umd": 3, "alum": 3,
             "first_degree": 2, "second_degree": 1}
 

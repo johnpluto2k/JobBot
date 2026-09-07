@@ -19,7 +19,7 @@ PLATFORM_STRATEGY: dict[str, str] = {
     "glassdoor": "Pair postings with salary data before applying/negotiating.",
     "google": "Aggregator — follow through to the company portal for the real ATS.",
     "zip_recruiter": "Volume board — quick apply, verify the role is current.",
-    "handshake": "Critical for UMD: Big 4 / Fortune 500 recruit here — full tailoring.",
+    "handshake": "Critical for students: Big 4 / Fortune 500 recruit here — full tailoring.",
     "workday": "Company portal, high stakes — full tailoring, exact-keyword resume.",
 }
 
@@ -71,7 +71,7 @@ def priority_score(tier_num: int, ats_score: float, days_since_posting: int | No
 
 
 # --- Apply gate (career-ops "don't apply below X" philosophy) ----------------
-# career-ops refuses anything scoring below 4.0/5 — quality over quantity. John's
+# career-ops refuses anything scoring below 4.0/5 — quality over quantity. the owner's
 # ATS scores run lower than a senior candidate's, so the gate keys off the blended
 # priority (tier + fit + recency) and the legitimacy score, calibrated to his data:
 # he applied to 101 positions for an 11% interview rate — a gate focuses that effort.
@@ -86,11 +86,11 @@ def recommend(priority: float, legit_score: int | None = None,
     """career-ops-style apply gate → (recommendation, reason).
 
     Returns one of: "🎓 Above level" | "🚩 Verify" | "✅ Apply" | "🟡 Maybe" | "⏭️ Skip".
-    Gates, in order, so the pipeline stays aimed at who John actually is:
+    Gates, in order, so the pipeline stays aimed at who the owner actually is:
       1. seniority — an entry-level candidate is never told to apply to a
          senior/lead/exec role; a mid-level role is capped at "Maybe".
       2. legitimacy — scam/ghost postings need verifying first.
-      3. field fit — a role outside John's target fields ('Other') is never a
+      3. field fit — a role outside the owner's target fields ('Other') is never a
          clean "Apply", only "Maybe" at best.
       4. priority — tier + ATS fit + recency for the roles that pass 1-3.
     """

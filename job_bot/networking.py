@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from .connections import connection_strength, matches_for_company
+from . import candidate as _candidate
 from .db import connect
 from .decision_models import ConnectionMatch
 from .outreach import draft
@@ -30,9 +31,10 @@ def _kind_for(contact: ConnectionMatch) -> str:
     return "intro"
 
 
-def build_plan(company: str, role_title: str, candidate: str = "John",
+def build_plan(company: str, role_title: str, candidate: str | None = None,
                max_contacts: int = 3, use_llm: bool | None = None,
                log: bool = True) -> dict:
+    candidate = candidate or _candidate.first_name()
     matches, strength, recruiter = find_contacts(company)
     today = date.today()
     plan_contacts = []

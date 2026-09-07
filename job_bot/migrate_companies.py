@@ -116,7 +116,7 @@ def run_migration(dry_run: bool = False, backup: bool = True) -> dict:
     """Execute the migration.
 
     Seed the companies table from applications.build_applications() — the canonical
-    source of truth. This ensures we only track companies where John actually applied.
+    source of truth. This ensures we only track companies where the owner actually applied.
 
     Returns: {
         total_companies: int,

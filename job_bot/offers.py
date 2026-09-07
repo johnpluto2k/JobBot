@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from .db import connect
 
-# Rough cost-of-living indices (100 = US average), DMV-focused for John.
+# Rough cost-of-living indices (100 = US average), DMV-focused for the owner.
 COL_INDEX: dict[str, float] = {
     "washington": 152, "washington, dc": 152, "dc": 152, "arlington": 155,
     "mclean": 160, "tysons": 158, "bethesda": 156, "baltimore": 110,

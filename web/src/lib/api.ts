@@ -402,6 +402,21 @@ export interface CoachReply {
   error?: string
 }
 export interface CoachSnapshot {
+  generated_at?: string
+  warnings?: string[]
+  freshness?: {
+    state: 'fresh' | 'stale' | 'error' | 'unknown'
+    last_successful_sync: string | null
+    last_error: string | null
+    latest_email?: string | null
+    latest_job?: string | null
+    latest_watch?: string | null
+  }
+  email_counts?: {
+    unhandled_recruiter_email: number
+    older_unhandled_email: number
+    automated_acknowledgements: number
+  }
   funnel?: Summary
   funnel_error?: string
   upcoming_interviews?: {

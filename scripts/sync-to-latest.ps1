@@ -11,7 +11,7 @@
 # unconditionally, which would have rolled the app back two commits as soon as
 # another session pushed to GitHub without updating the local branch.
 param(
-    [string]$Root = 'C:\ClaudeProjects\Job Bot'
+    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 )
 
 # Resolve the real git.exe. Do NOT name this helper 'Git' - PowerShell resolves

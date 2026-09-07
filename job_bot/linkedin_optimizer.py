@@ -1,6 +1,6 @@
 """LinkedIn Profile Optimizer (Recommendation #6).
 
-Audits John's profile against the same JD/keyword logic the ATS scorer uses and
+Audits the owner's profile against the same JD/keyword logic the ATS scorer uses and
 proposes concrete LinkedIn edits — headline, About section, Skills, and
 experience bullets — so the profile mirrors the resume strategically and pulls
 more inbound recruiter traffic.
@@ -13,11 +13,10 @@ Claude-polished for the About section when a key is present.
 
 from __future__ import annotations
 
-from . import config
+from . import candidate, config
 from .ats_engine import load_profile
 from .writing_style import STYLE_RULES
 
-GRAD = "2027"
 
 
 def _all_profile_skills(profile: dict) -> list[str]:
@@ -83,20 +82,17 @@ def headline(profile: dict, role: str) -> str:
         if len(picks) == 2:
             break
     spotlight = " | ".join(picks) if picks else "Audit | Data Analytics"
-    text = (f"{field} Student at the University of Maryland | "
-            f"Aspiring {role} | {spotlight}")
+    school = candidate.school(profile)
+    who = f"{field} Student at {school}" if school else f"{field} Student"
+    text = f"{who} | Aspiring {role} | {spotlight}"
     if len(text) > HEADLINE_MAX:  # drop the spotlight, then trim
-        text = f"{field} Student at the University of Maryland | Aspiring {role}"[:HEADLINE_MAX]
+        text = f"{who} | Aspiring {role}"[:HEADLINE_MAX]
     return text
 
 
 def about_section(profile: dict, role: str, add_keywords: list[str]) -> str:
-    name = profile.get("personal", {}).get("name", "John Bae")
-    edu = (profile.get("education") or [{}])[0]
-    summary = profile.get("summary") or (
-        f"I'm a University of Maryland student studying {edu.get('major','Accounting')}"
-        + (f" and {edu.get('secondary_major')}" if edu.get("secondary_major") else "")
-        + f", graduating {edu.get('graduation_date', GRAD)}.")
+    name = candidate.name(profile)
+    summary = profile.get("summary") or f"I'm {candidate.blurb(profile)}."
     interests = (f"I'm focused on becoming a {role}, working at the intersection of "
                  "accounting, controls, and data analytics.")
     proof = "Recent work spans audit support, data analysis, and leadership in PSE/IEFS/TerpTax."
@@ -164,7 +160,7 @@ def audit(profile: dict | None = None, jd_text: str | None = None,
     if not profile.get("personal", {}).get("linkedin"):
         recs.append("Add your LinkedIn URL to the master profile so the system can deep-link it.")
     recs.append("Set the headline below — it's the #1 search-ranked field on LinkedIn.")
-    recs.append("Turn on 'Open to Work' (recruiters-only) for your target roles + DMV/remote.")
+    recs.append("Turn on 'Open to Work' (recruiters-only) for your target roles + your home market/remote.")
 
     return {
         "target_role": role,
@@ -181,10 +177,10 @@ def _llm_about(profile: dict, role: str, add: list[str]) -> str:
     import anthropic
 
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    name = profile.get("personal", {}).get("name", "John Bae")
+    name = candidate.name(profile)
     prompt = (
-        f"Write a first-person LinkedIn 'About' section for {name}, a UMD Accounting + "
-        f"Information Science student (grad {GRAD}) aiming to be a {role}. "
+        f"Write a first-person LinkedIn 'About' section for {name}, "
+        f"{candidate.blurb(profile)}, aiming to be a {role}. "
         f"Naturally work in these keywords: {', '.join(add[:10]) or 'audit, data analytics, risk'}. "
         "Tell a story: why accounting, why information science, career goals, and "
         "what he's seeking now. Position him at the intersection of accounting, "

@@ -644,7 +644,7 @@ with tab_pipe:
         statuses = ["(all)"] + sorted(x for x in jobs["status"].dropna().unique())
         fieldlist = ["(all)"] + sorted(x for x in jobs["field"].dropna().unique())
         recs = ["(all)"] + sorted(x for x in jobs["recommendation"].dropna().unique())
-        # Level filter, ordered intern→exec, defaulting to John's range (hides senior+).
+        # Level filter, ordered intern→exec, defaulting to the owner's range (hides senior+).
         present_levels = [lv for lv in _SEN_LEVELS if lv in set(jobs["seniority"].dropna())]
         lvl_opts = ["My level (intern–mid)", "(all levels)"] + [_sen_label(lv) for lv in present_levels]
         lsel = c1.selectbox("Level", lvl_opts)

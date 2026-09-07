@@ -1,6 +1,6 @@
-"""Seniority detection — keep the pipeline aimed at the level John is actually at.
+"""Seniority detection — keep the pipeline aimed at the level the owner is actually at.
 
-John is a rising senior (graduates May 2027) targeting internships and entry-level /
+the owner is a rising senior (graduates May 2027) targeting internships and entry-level /
 new-grad roles. Scraped job boards return everything, so without this filter the
 pipeline fills with "Senior ...", "... Manager", "Lead ...", and roles that require
 years of experience he doesn't have — and the apply gate was recommending them.
@@ -9,7 +9,7 @@ classify() reads the level from the title AND the JD text (years-of-experience
 required), returning one of: intern < entry < mid < senior < lead < exec. The
 search + apply gate use it to drop / down-rank anything above his target level.
 
-Calibrated for John's fields: 'Staff Accountant' and 'Staff Auditor' are ENTRY in
+Calibrated for the owner's fields: 'Staff Accountant' and 'Staff Auditor' are ENTRY in
 accounting (so 'staff' is NOT treated as senior), while 'Senior Auditor',
 'Audit Manager', and 'Analyst III' are correctly filtered out.
 """
@@ -21,7 +21,7 @@ import re
 LEVELS = ["intern", "entry", "mid", "senior", "lead", "exec"]
 _ORDER = {lvl: i for i, lvl in enumerate(LEVELS)}
 
-# John targets internships + entry-level; 'mid' is a stretch (kept but gated), and
+# the owner targets internships + entry-level; 'mid' is a stretch (kept but gated), and
 # senior/lead/exec are filtered out of search results and never recommended.
 TARGET_MAX = "entry"          # his primary target ceiling
 KEEP_MAX = "mid"              # highest level still shown (mid is a stretch, gated)
@@ -97,7 +97,7 @@ def is_above(level: str, ceiling: str) -> bool:
 
 
 def too_senior(level: str) -> bool:
-    """Above what we ever show John (senior/lead/exec)."""
+    """Above what we ever show the owner (senior/lead/exec)."""
     return is_above(level, KEEP_MAX)
 
 

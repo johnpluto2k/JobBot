@@ -2,7 +2,7 @@
 
 Tech/CS-track fields render via the RenderCV engineering theme (Typst PDF — the
 ``engineeringresumes`` theme in ``render_rendercv.py``); every other field keeps
-the VMH/business ``docx`` renderer (``render_docx``/``render_pdf``) that John has
+the VMH/business ``docx`` renderer (``render_docx``/``render_pdf``) that the owner has
 historically submitted. Fields come from ``applications.classify_field``.
 """
 
@@ -13,7 +13,7 @@ TECH_FIELDS = {"Data & Analytics", "Software / Engineering"}
 
 # NOTE: "IT Audit / Tech Risk" is deliberately treated as business/VMH by
 # default — it's still an audit/risk-track role at accounting-style firms, not a
-# SWE/CS résumé. Move it into TECH_FIELDS if John wants IT-audit applications on
+# SWE/CS résumé. Move it into TECH_FIELDS if the owner wants IT-audit applications on
 # the engineering template instead.
 
 

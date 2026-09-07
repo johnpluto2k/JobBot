@@ -3,7 +3,7 @@
 newgrad-jobs.com is an Airtable-backed aggregator of LinkedIn / Indeed /
 Handshake postings filtered to 0–2 years of experience. Rather than scrape their
 signed Airtable views (fragile + ToS grey area), this module reproduces the
-*intent* robustly: it runs entry-level searches for John's target roles across
+*intent* robustly: it runs entry-level searches for the owner's target roles across
 the same underlying boards via the existing JobSpy pipeline, then scores them
 against his profile, routes by market tier, dedupes, and stores them — so they
 flow into the Action Center, priority ranking, and the notification system.
@@ -17,7 +17,7 @@ from __future__ import annotations
 from .ats_engine import load_profile
 from .deprecated.jobsearch import save_jobs, score_and_route, search
 
-# John's two active searches (he graduates May 2027):
+# the owner's two active searches (example: a May 2027 graduation):
 #   1) REMOTE internships he can do during Fall 2026 / Spring 2027 (part-time-friendly,
 #      remote so they fit around classes), and
 #   2) FULL-TIME new-grad roles starting Summer 2027.
@@ -53,7 +53,7 @@ TARGET_QUERIES: list[tuple[str, bool]] = INTERNSHIP_QUERIES + FULLTIME_QUERIES
 DEFAULT_LOCATION = "Washington, DC"
 
 # --- Career tracks -----------------------------------------------------------
-# Role search terms grouped by track so John can widen beyond business/finance into
+# Role search terms grouped by track so the owner can widen beyond business/finance into
 # data and *tech* (his second major is Information Science). Each term carries a
 # remote-friendly flag used for full-time searches; internships are searched
 # remote-first (they fit around classes) unless the caller says otherwise.
@@ -204,7 +204,7 @@ def main() -> None:
     except Exception:
         pass
 
-    ap = argparse.ArgumentParser(description="Job tracker for John's roles: remote "
+    ap = argparse.ArgumentParser(description="Job tracker for the owner's roles: remote "
                                  "Fall/Spring internships + Summer 2027 full-time.")
     ap.add_argument("--location", default=DEFAULT_LOCATION)
     ap.add_argument("--hours", type=int, default=72, help="Only postings newer than N hours")

@@ -11,7 +11,11 @@ from the same place and nothing is "off".
 
 Status (mutually exclusive outcomes, so they always sum to the total):
     offer        — an offer is on the table
-    rejected     — at least one rejection (a company can reject several roles)
+    rejected     — at least one rejection, and nothing applied to since. A fresh
+                   application dated after the latest rejection starts a new
+                   cycle: the company is back to in_review (Robinhood rejected the
+                   Summer 2026 intern app in Nov 2025; the Sept 2026 New Grad app
+                   must not inherit that).
     ghosted      — applied, no response in GHOST_DAYS, no rejection/interview
     interviewing — reached interview/assessment and still active
     in_review    — applied, still within the response window, no outcome yet
@@ -69,7 +73,26 @@ _EXCLUDE = {"the scion group", "scion", "university view apartments", "universit
             "recruitix", ""}
 
 # tracked_emails categories that prove John actually applied (not just marketing).
-_APPLIED_CATS = ("recruiter_reply", "rejection", "interview_invite", "assessment", "offer")
+#
+# `recruiter_reply` is deliberately NOT here. The inbox classifier hands out that
+# label on loose cues ("talent acquisition" in the sender, "connect" in a body),
+# so a Coinbase crypto newsletter and an IBM event-registration receipt both
+# became "applications" in the funnel. A recruiter reply only counts as applied
+# evidence when its subject is an actual application confirmation
+# (_CONFIRMATION_RE) or the company already has a job row John logged.
+_STRONG_APPLIED_CATS = ("rejection", "interview_invite", "assessment", "offer")
+_APPLIED_CATS = _STRONG_APPLIED_CATS  # kept for callers that import the old name
+
+_CONFIRMATION_RE = re.compile(
+    r"thank(?:s| you) for (?:applying|your application|submitting)"
+    r"|application (?:has been |was )?(?:received|submitted)"
+    r"|(?:we(?:'ve| have) )?received your (?:job )?application"
+    r"|application is (?:now )?complete"
+    r"|successfully (?:applied|submitted)"
+    r"|confirming your .{0,30}application"
+    r"|congratulations on applying",
+    re.I,
+)
 
 # Career-field classification by role title. Ordered: first match wins, so the
 # more specific fields (IT audit, tax, internal audit) are tested before the
@@ -182,6 +205,13 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
             "company": disp, "roles": set(), "subjects": set(), "n_jobs": 0, "n_emails": 0,
             "first_seen": None, "last_seen": None, "reached_interview": False,
             "has_offer": False, "has_rejection": False, "any_applied_signal": False,
+            # Dates that decide whether a rejection is the *current* cycle's outcome.
+            # A rejection with no usable date stays sticky (undated_rejection).
+            "last_applied": None, "last_rejected": None, "undated_rejection": False,
+            # Ledger rows all carry the import date (2026-02-15 for 100 rows), so
+            # a ledger rejection can't be ordered against emails. It is only
+            # superseded by a job John logged through intake after that date.
+            "ledger_rejected_at": None, "last_tracker": None,
         })
 
     def touch(a: dict, when: str | None):
@@ -191,19 +221,46 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
         a["first_seen"] = w if not a["first_seen"] else min(a["first_seen"], w)
         a["last_seen"] = w if not a["last_seen"] else max(a["last_seen"], w)
 
+    def applied_on(a: dict, when: str | None):
+        a["any_applied_signal"] = True
+        w = _d(when)
+        if w and (not a["last_applied"] or w > a["last_applied"]):
+            a["last_applied"] = w
+
+    def rejected_on(a: dict, when: str | None):
+        a["has_rejection"] = True
+        w = _d(when)
+        if not w:
+            a["undated_rejection"] = True
+        elif not a["last_rejected"] or w > a["last_rejected"]:
+            a["last_rejected"] = w
+
     # 1) positions ledger (one row per distinct position applied to — verified from
     #    application-confirmation emails' job IDs/locations + his tracker).
-    for r in con.execute("SELECT company, title, status, date_posted FROM jobs "
+    for r in con.execute("SELECT company, title, status, date_posted, site FROM jobs "
                          "WHERE site IN ('email','tracker','ledger')"):
         a = slot(r["company"])
         if a is None:
             continue
         a["n_jobs"] += 1
-        a["any_applied_signal"] = True
         if r["title"]:
             a["roles"].add(r["title"].strip())
-        if r["status"] == "rejected":
+        a["any_applied_signal"] = True
+        d = _d(r["date_posted"])
+        if r["site"] == "tracker":
+            # Logged by John through intake - a real application date.
+            if r["status"] == "rejected":
+                rejected_on(a, r["date_posted"])
+            else:
+                applied_on(a, r["date_posted"])
+                if d and (not a["last_tracker"] or d > a["last_tracker"]):
+                    a["last_tracker"] = d
+        elif r["status"] == "rejected":
             a["has_rejection"] = True
+            if d and (not a["ledger_rejected_at"] or d > a["ledger_rejected_at"]):
+                a["ledger_rejected_at"] = d
+            elif not d:
+                a["undated_rejection"] = True
         touch(a, r["date_posted"])
 
     # 2) Gmail outcome history.
@@ -215,14 +272,16 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
         if r["subject"]:
             a["subjects"].add(r["subject"])
         touch(a, r["received_at"])
-        if r["category"] in _APPLIED_CATS:
+        if r["category"] in _STRONG_APPLIED_CATS:
             a["any_applied_signal"] = True
+        elif r["category"] == "recruiter_reply" and _CONFIRMATION_RE.search(r["subject"] or ""):
+            applied_on(a, r["received_at"])
         # A real interview invite counts as reaching the interview stage; a bare
         # online assessment does not (kept consistent with the interviews table).
         if r["category"] == "interview_invite":
             a["reached_interview"] = True
         if r["category"] == "rejection":
-            a["has_rejection"] = True
+            rejected_on(a, r["received_at"])
         if r["category"] == "offer":
             a["has_offer"] = True
 
@@ -232,10 +291,10 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
         if a:
             a["reached_interview"] = True
             a["any_applied_signal"] = True
-    for r in con.execute("SELECT company FROM rejections"):
+    for r in con.execute("SELECT company, rejected_on FROM rejections"):
         a = slot(r["company"])
         if a:
-            a["has_rejection"] = True
+            rejected_on(a, r["rejected_on"])
             a["any_applied_signal"] = True
     for r in con.execute("SELECT company FROM offers WHERE status='open'"):
         a = slot(r["company"])
@@ -247,9 +306,23 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
     for a in apps.values():
         if not a["any_applied_signal"]:
             continue  # company we only ever got marketing from — not an application
+        # Re-applied after the most recent rejection? Then that rejection belongs
+        # to a closed cycle and must not colour the new one. Any undated
+        # rejection keeps the old sticky behaviour - we can't prove it's older.
+        reapplied = bool(
+            a["has_rejection"] and not a["undated_rejection"] and a["last_applied"]
+            # newer than every dated rejection (emails / rejections table) ...
+            and (not a["last_rejected"] or a["last_applied"] > a["last_rejected"])
+            # ... and, if the ledger holds a rejection, a tracker-logged job
+            # postdates the ledger snapshot. Confirmation emails alone can't
+            # supersede a ledger rejection: Deloitte's Feb-2026 receipts are the
+            # very applications the ledger then marks rejected.
+            and (not a["ledger_rejected_at"]
+                 or (a["last_tracker"] and a["last_tracker"] > a["ledger_rejected_at"]))
+        )
         if a["has_offer"]:
             status = "offer"
-        elif a["has_rejection"]:
+        elif a["has_rejection"] and not reapplied:
             status = "rejected"
         elif a["last_seen"] and a["last_seen"] < ghost_cutoff:
             status = "ghosted"
@@ -260,6 +333,10 @@ def build_applications(ref_date: date | None = None) -> list[dict]:
         rec = {
             "company": a["company"], "status": status,
             "reached_interview": a["reached_interview"],
+            # True when an earlier cycle at this company was rejected and John
+            # has since applied again - the UI can show the history without the
+            # old outcome hiding the live application.
+            "reapplied": reapplied,
             # positions = distinct application instances (each ledger row is one
             # posting/job-ID), NOT deduped titles — a firm applied to at several
             # locations counts each separately.

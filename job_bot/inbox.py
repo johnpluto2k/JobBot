@@ -47,13 +47,21 @@ SIGNALS: list[tuple[str, list[str], str]] = [
                     r"complete (?:your |an |the )?(?:skills |online )?assessment", r"received your video",
                     r"online screening", r"pre-interview assessment"],
      "Schedule a focused block; practice the matching question type (interview --drill)."),
+    # Bare r"connect" and r"\bapplied\b" used to sit in this list. "connect"
+    # matches "Coinbase Connect", "connect your wallet", every newsletter
+    # footer; a Coinbase Bytes crypto newsletter was filed as a recruiter reply
+    # and reached the applications funnel. Sender-side cues ("talent
+    # acquisition") stay, but is_noise() now runs before any of these, so an
+    # event registration receipt from "IBM Talent Acquisition" is dropped first.
     ("recruiter_reply", [r"recruiter", r"talent acquisition", r"following up", r"thanks? for applying",
                          r"thank you for applying", r"thank you for your application",
                          r"received your (?:job )?application", r"application (?:has been |was )?received",
                          r"thank you for your interest", r"thank you for expressing interest",
                          r"congratulations on applying", r"application is now complete",
                          r"confirming your .{0,30}application", r"successfully (?:applied|submitted)",
-                         r"thank you for completing", r"reaching out", r"connect", r"\bapplied\b"],
+                         r"thank you for completing", r"reaching out",
+                         r"(?:would|'d) (?:love|like) to connect", r"connect with you",
+                         r"(?:you|you've|you have) applied (?:to|for)", r"applied for the"],
      "Reply promptly; if warm, ask about timeline and next steps."),
 ]
 
@@ -64,6 +72,12 @@ CATEGORY_TO_STATUS = {
     "rejection": "rejected",
     "offer": "offer",
 }
+
+# How far along a jobs.status is. record_email() only moves a row to a HIGHER
+# rank, so an inbound receipt can't push 'applied' back to 'networking'.
+STATUS_RANK = {"new": 0, "saved": 0, "networking": 1, "applied": 2, "interview": 3,
+               "rejected": 4, "offer": 4}
+TERMINAL_STATUSES = {"offer", "rejected"}
 
 
 # ATS / mail-infra domains and generic local-parts that are NOT the employer.
@@ -123,10 +137,39 @@ NOISE_PATTERNS = [
     r"your (?:statement|balance) is ready", r"price drop", r"flash sale",
 ]
 
+# Subject-only noise. These words are common inside legitimate recruiting mail
+# ("join our webinar before your interview"), so they are only trusted when they
+# ARE the subject.
+SUBJECT_NOISE_PATTERNS = [
+    # Crypto / brokerage account chatter (Coinbase, Robinhood consumer mail).
+    r"price alert", r"top mover", r"your (?:crypto )?portfolio", r"buying guide",
+    # Event / webinar registration receipts. "Registration Confirmation for The
+    # Consulting Edge" from IBM Talent Acquisition is an event RSVP, not an
+    # application, and was landing in the funnel as one.
+    r"registration confirm", r"thank you for registering", r"you(?:'re| are) (?:now )?registered",
+    r"registered for", r"event (?:confirmation|registration|reminder)", r"save the date",
+    r"\bwebinar\b", r"info(?:rmation)? session", r"virtual session", r"career fair",
+]
 
-def is_noise(subject: str, body: str = "") -> bool:
+# Sender local-parts that are marketing/newsletter streams, never a recruiter.
+# Checked against the address only, so "Coinbase Bytes <newsletter@mail.coinbase.com>"
+# is noise even when the subject carries no newsletter wording.
+NEWSLETTER_SENDERS = {"newsletter", "newsletters", "news", "marketing", "promo", "promotions",
+                      "digest", "bytes", "insights", "community", "events", "event", "webinars"}
+
+
+def is_noise(subject: str, body: str = "", sender: str = "") -> bool:
     t = f"{subject} {body}".lower()
-    return any(re.search(p, t) for p in NOISE_PATTERNS)
+    if any(re.search(p, t) for p in NOISE_PATTERNS):
+        return True
+    s = (subject or "").lower()
+    if any(re.search(p, s) for p in SUBJECT_NOISE_PATTERNS):
+        return True
+    if m := re.search(r"([a-z0-9_\-.+]+)@", sender.lower()):
+        local = m.group(1).split("+")[0]
+        if local in NEWSLETTER_SENDERS or local.startswith("newsletter"):
+            return True
+    return False
 
 
 # Aliases this short ("EY", "BDO", "CLA") collide with ordinary words and URL
@@ -176,10 +219,14 @@ def detect_company(text: str, sender: str = "", subject: str = "") -> str | None
 def classify_email(subject: str, body: str = "", sender: str = "") -> dict:
     text = f"{subject}\n{body}".lower()
     category, action = "other", "Review and file; no clear action."
-    for cat, patterns, act in SIGNALS:
-        if any(re.search(p, text, re.I) for p in patterns):
-            category, action = cat, act
-            break
+    # Noise first. gmail_sync already pre-filters with is_noise(), but every
+    # other caller (CLI triage, tests, pasted text) reached SIGNALS directly and
+    # newsletters could still earn a recruiting label.
+    if not is_noise(subject, body, sender):
+        for cat, patterns, act in SIGNALS:
+            if any(re.search(p, text, re.I) for p in patterns):
+                category, action = cat, act
+                break
     return {
         "category": category,
         "action": action,
@@ -249,12 +296,18 @@ def record_email(received_at: str, sender: str, subject: str, body: str = "",
             # Almost certainly a misdetection. Record the email, change nothing.
             matches = []
         else:
-            ids = [m["id"] for m in matches]
-            con.execute(
-                "UPDATE jobs SET status=? WHERE id IN (%s) AND status NOT IN "
-                "('offer','rejected')" % ",".join("?" * len(ids)),
-                (result["status_hint"], *ids),
-            )
+            # Only ever move a job FORWARD. A "thank you for applying" receipt
+            # hints 'networking', which used to overwrite the 'applied' John had
+            # just logged through intake - a downgrade in the tracker UI.
+            hint_rank = STATUS_RANK.get(result["status_hint"], 0)
+            ids = [m["id"] for m in matches
+                   if STATUS_RANK.get(m["status"] or "new", 0) < hint_rank
+                   and (m["status"] or "") not in TERMINAL_STATUSES]
+            if ids:
+                con.execute(
+                    "UPDATE jobs SET status=? WHERE id IN (%s)" % ",".join("?" * len(ids)),
+                    (result["status_hint"], *ids),
+                )
     con.commit()
     con.close()
 

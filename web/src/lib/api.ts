@@ -39,6 +39,8 @@ export interface Application {
   status: StatusKey
   status_label: string
   reached_interview: boolean
+  /** An earlier cycle here was rejected and John has since applied again. */
+  reapplied: boolean
   positions: number
   roles: string[]
   emails: number

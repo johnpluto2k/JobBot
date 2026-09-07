@@ -52,6 +52,15 @@ export function ApplicationsTable({ apps }: { apps: Application[] }) {
               </TableCell>
               <TableCell className="tabular-nums text-muted-foreground">{fmtDate(a.last_seen)}</TableCell>
               <TableCell className="text-right">
+                {a.reapplied && (
+                  <Badge
+                    variant="outline"
+                    className="mr-1.5 text-muted-foreground"
+                    title="An earlier application here was rejected; this is a new one"
+                  >
+                    Re-applied
+                  </Badge>
+                )}
                 <Badge variant={STATUS_VARIANT[a.status]}>{a.status_label}</Badge>
               </TableCell>
             </TableRow>

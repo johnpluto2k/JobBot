@@ -101,7 +101,7 @@ def sync_threads(threads: list[dict], drop_other: bool = True) -> dict:
     from .inbox import is_noise
 
     all_emails = [normalize_thread(t) for t in threads]
-    emails = [e for e in all_emails if not is_noise(e["subject"], e["body"])]
+    emails = [e for e in all_emails if not is_noise(e["subject"], e["body"], e.get("sender", ""))]
     noise = len(all_emails) - len(emails)
     results = triage(emails, drop_other=drop_other)
 

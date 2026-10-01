@@ -1,0 +1,4 @@
+interface:
+  display_name: "LinkedIn Networking"
+  short_description: "Draft connection notes from the profile you select"
+  default_prompt: "Use $linkedin-networking to read the LinkedIn profile I selected in the Codex browser and draft a short, personalized connection note."

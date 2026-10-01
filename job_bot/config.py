@@ -83,6 +83,10 @@ CHROMA_DIR = OUTPUT_DIR / "chroma"
 # LLM settings. The plan targets claude-sonnet-5 for judgment-heavy calls
 # (cover letters, extraction); mechanical calls (bullet rephrasing) route to
 # the cheaper/faster model below.
+# Start of the current search season (YYYY-MM-DD). The applications tracker and
+# funnel ignore anything older; empty = all history.
+TRACKER_SINCE = os.getenv("JOB_BOT_TRACKER_SINCE", "").strip()
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
 ANTHROPIC_MODEL_FAST = os.getenv("ANTHROPIC_MODEL_FAST", "claude-haiku-4-5-20251001")

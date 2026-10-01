@@ -12,25 +12,35 @@ import { api } from '@/lib/api'
 // action in this system, so it belongs on screen.
 const PORTALS = ['linkedin', 'indeed', 'handshake', 'workday', 'greenhouse',
   'glassdoor', 'ziprecruiter', 'jobright', 'smith', 'email', 'other']
-const STATUSES = ['applied', 'saved', 'rejected', 'offer']
+const STATUSES = ['applied', 'interview', 'rejected', 'offer', 'saved']
 
 interface Props {
   /** Called after a successful save so the caller can refetch its data. */
   onLogged?: () => void
+  /** Button text when collapsed. */
+  label?: string
 }
 
-export function LogJobForm({ onLogged }: Props) {
+function todayIso() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export function LogJobForm({ onLogged, label = 'Log a job' }: Props) {
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState('')
   const [company, setCompany] = useState('')
   const [title, setTitle] = useState('')
   const [portal, setPortal] = useState('linkedin')
   const [status, setStatus] = useState('applied')
+  const [appliedOn, setAppliedOn] = useState(todayIso)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
 
-  const ready = url.trim() && company.trim() && title.trim()
+  // The URL is optional: plenty of applications go through a portal whose
+  // posting link isn't handy, and a required field meant they never got logged.
+  const ready = company.trim() && title.trim()
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -39,8 +49,9 @@ export function LogJobForm({ onLogged }: Props) {
     setError(null)
     setSaved(null)
     try {
-      const res = await api.intake({
-        url: url.trim(), company: company.trim(), title: title.trim(), portal, status,
+      const res = await api.track({
+        url: url.trim() || undefined, company: company.trim(), title: title.trim(), portal, status,
+        applied_on: appliedOn || undefined,
       })
       // The API answers validation failures with HTTP 200 and an {error} body, so
       // checking response.ok alone would show a success that never happened.
@@ -49,7 +60,7 @@ export function LogJobForm({ onLogged }: Props) {
         return
       }
       setSaved(`${res.company_name ?? company} — ${res.job_title ?? title}`)
-      setUrl(''); setCompany(''); setTitle('')
+      setUrl(''); setCompany(''); setTitle(''); setStatus('applied'); setAppliedOn(todayIso())
       onLogged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -63,7 +74,7 @@ export function LogJobForm({ onLogged }: Props) {
       <div className="flex items-center gap-3">
         <Button onClick={() => setOpen(true)}>
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-          Log a job
+          {label}
         </Button>
         {saved && (
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -95,11 +106,11 @@ export function LogJobForm({ onLogged }: Props) {
             </label>
           </div>
           <label className="grid gap-1 text-sm">
-            <span className="text-muted-foreground">Posting URL</span>
+            <span className="text-muted-foreground">Posting URL <span className="text-xs">(optional)</span></span>
             <Input value={url} onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://..." inputMode="url" required />
+              placeholder="https://..." inputMode="url" />
           </label>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Where you found it</span>
               <select value={portal} onChange={(e) => setPortal(e.target.value)}
@@ -113,6 +124,11 @@ export function LogJobForm({ onLogged }: Props) {
                 className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
                 {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-muted-foreground">Applied on</span>
+              <Input type="date" value={appliedOn} max={todayIso()}
+                onChange={(e) => setAppliedOn(e.target.value)} />
             </label>
           </div>
 
@@ -129,7 +145,7 @@ export function LogJobForm({ onLogged }: Props) {
               Cancel
             </Button>
             <span className="text-xs text-muted-foreground">
-              Re-logging the same URL updates that application instead of duplicating it.
+              Re-logging the same URL (or company + title) updates that application instead of duplicating it.
             </span>
           </div>
         </form>

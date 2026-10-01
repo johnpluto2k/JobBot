@@ -16,13 +16,25 @@ function relTime(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-/** Gmail sync chip: last sync time + new items, auto-refreshing, manual run. */
-export function SyncIndicator() {
+/** Gmail sync chip: last sync time + new items, auto-refreshing, manual run.
+ *  `onSynced` fires whenever a sync (manual or the 15-minute job) has finished,
+ *  so pages can refetch instead of showing what was true when they mounted. */
+export function SyncIndicator({ onSynced }: { onSynced?: () => void }) {
   const [status, setStatus] = useState<SyncStatus | null>(null)
   const [syncing, setSyncing] = useState(false)
   // Re-render each minute so the relative timestamp stays honest between polls.
   const [, setTick] = useState(0)
   const alive = useRef(true)
+  const lastSeenSync = useRef<string | null | undefined>(undefined)
+  const onSyncedRef = useRef(onSynced)
+  onSyncedRef.current = onSynced
+
+  useEffect(() => {
+    const at = status?.last_sync
+    if (at === undefined) return
+    if (lastSeenSync.current !== undefined && at !== lastSeenSync.current) onSyncedRef.current?.()
+    lastSeenSync.current = at
+  }, [status?.last_sync])
 
   const refresh = useCallback(() => {
     api

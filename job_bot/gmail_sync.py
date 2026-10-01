@@ -44,6 +44,11 @@ def _norm_date(raw: str) -> str:
     m = re.match(r"(\d{4})[-/](\d{2})[-/](\d{2})", raw)
     if m:
         return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(raw).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, IndexError):
+        pass
     for fmt in ("%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S",
                 "%d %b %Y", "%b %d, %Y", "%Y/%m/%d"):
         try:
@@ -90,6 +95,37 @@ def normalize_thread(thread: dict) -> dict:
     }
 
 
+def expand_thread(thread: dict) -> list[dict]:
+    """The records one thread contributes: its latest inbound message (as
+    ``normalize_thread``), plus every EARLIER inbound message that is an
+    application receipt.
+
+    Applying to three Mastercard roles in one evening lands three receipts in
+    one Gmail thread; reading only the latest message counted one application
+    and lost two. Extra receipts are keyed ``<thread id>:<message id>`` so they
+    dedupe on re-scan without colliding with the thread's own row.
+    """
+    from .inbox import classify_email
+
+    records = [normalize_thread(thread)]
+    msgs = thread.get("messages") or thread.get("relatedMessages") or []
+    inbound = [m for m in msgs if not _is_outbound(m)]
+    tid = records[0]["gmail_id"]
+    for m in inbound[:-1]:
+        subject = _first(m, "subject") or _first(thread, "subject")
+        body = _first(m, "plaintextBody", "body", "snippet")
+        sender = _first(m, "from", "sender", "From")
+        if not classify_email(subject, body, sender)["applied"]:
+            continue
+        records.append({
+            "received_at": _norm_date(_first(m, "date", "Date", "received_at", "internalDate")),
+            "sender": str(sender), "subject": str(subject), "body": str(body),
+            "participants": records[0]["participants"],
+            "gmail_id": f"{tid}:{m.get('id', '')}",
+        })
+    return records
+
+
 def sync_threads(threads: list[dict], drop_other: bool = True) -> dict:
     """Normalize, classify, persist, and summarize a batch of Gmail threads.
 
@@ -100,7 +136,7 @@ def sync_threads(threads: list[dict], drop_other: bool = True) -> dict:
     in the tracker."""
     from .inbox import is_noise
 
-    all_emails = [normalize_thread(t) for t in threads]
+    all_emails = [e for t in threads for e in expand_thread(t)]
     emails = [e for e in all_emails if not is_noise(e["subject"], e["body"], e.get("sender", ""))]
     noise = len(all_emails) - len(emails)
     results = triage(emails, drop_other=drop_other)

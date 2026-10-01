@@ -28,7 +28,7 @@ VALID_PORTALS = {
 }
 
 # Valid statuses
-VALID_STATUSES = {"applied", "saved", "rejected", "offer"}
+VALID_STATUSES = {"applied", "saved", "interview", "rejected", "offer"}
 
 
 def log_job(
@@ -38,6 +38,7 @@ def log_job(
     portal: str = "other",
     status: str = "applied",
     notes: str | None = None,
+    applied_on: str | None = None,
 ) -> dict:
     """Log a job the owner found and applied to manually.
 
@@ -48,6 +49,7 @@ def log_job(
         portal: Where the owner found it (indeed, linkedin, jobright, etc.)
         status: Application status (applied, saved, rejected, offer)
         notes: Optional notes about the application
+        applied_on: YYYY-MM-DD the application went in (default: today)
 
     Returns:
         dict with keys: id, company_id, company_name, job_title, url, status, portal, logged_at
@@ -82,7 +84,8 @@ def log_job(
         # typo. jobs.url is UNIQUE and this used to be a bare INSERT, so the second
         # call raised IntegrityError and surfaced as an opaque 500. Look first and
         # treat a repeat as an update.
-        existing = con.execute("SELECT id FROM jobs WHERE url = ?", (url.strip(),)).fetchone()
+        existing = con.execute("SELECT id, date_posted FROM jobs WHERE url = ?",
+                               (url.strip(),)).fetchone()
 
         # Get or create company. Record the portal on the company too - that is what
         # the companies.portals column is for, and it keeps the provenance that used
@@ -108,6 +111,11 @@ def log_job(
         # status='applied' rows existed and none of them counted. The portal is kept
         # on the company row above and in the job's notes.
         today = date.today().isoformat()
+        if applied_on:
+            try:
+                applied_on = date.fromisoformat(applied_on[:10]).isoformat()
+            except ValueError:
+                raise ValueError(f"Invalid applied_on date: {applied_on}") from None
         portal_note = f"[{portal_lower}]"
         note_text = f"{portal_note} {notes}".strip() if notes else portal_note
 
@@ -118,7 +126,9 @@ def log_job(
                        SET company_id=?, title=?, company=?, site='tracker',
                            status=?, date_posted=?, notes=?
                      WHERE id=?
-                """, (company_id, title.strip(), company_disp, status_lower, today,
+                """, (company_id, title.strip(), company_disp, status_lower,
+                      # Correcting a status must not move the application date.
+                      applied_on or existing["date_posted"] or today,
                       note_text, existing["id"]))
                 job_id = existing["id"]
             else:
@@ -132,7 +142,7 @@ def log_job(
                     company_disp,
                     url.strip(),
                     status_lower,
-                    today,
+                    applied_on or today,
                     note_text,
                 ))
                 job_id = cur.lastrowid
@@ -158,6 +168,51 @@ def log_job(
             "updated": bool(existing),
         }
 
+    finally:
+        con.close()
+
+
+def set_status(job_id: int, status: str) -> dict:
+    """Change the status of a position the owner logged, keeping its date."""
+    status_lower = (status or "").lower()
+    if status_lower not in VALID_STATUSES:
+        raise ValueError(f"Invalid status: {status}. Must be one of: {', '.join(sorted(VALID_STATUSES))}")
+    con = connect()
+    try:
+        row = con.execute("SELECT id, site FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if not row:
+            raise ValueError(f"No job with id {job_id}")
+        if row["site"] != "tracker":
+            # Imported ledger rows and scraped postings are not the owner's log.
+            raise ValueError("Only positions you logged can be edited; track this one first")
+        con.execute("UPDATE jobs SET status=? WHERE id=?", (status_lower, job_id))
+        con.commit()
+        return {"id": job_id, "status": status_lower}
+    finally:
+        con.close()
+
+
+def set_hidden(company_name: str, hidden: bool = True) -> dict:
+    """Mark a company as "not an application" (or undo it)."""
+    disp = applications.canon(company_name)
+    if not disp:
+        raise ValueError("Company name is required")
+    con = connect()
+    try:
+        if hidden:
+            con.execute("INSERT OR IGNORE INTO tracker_hidden (company) VALUES (?)", (disp,))
+        else:
+            con.execute("DELETE FROM tracker_hidden WHERE lower(company)=lower(?)", (disp,))
+        con.commit()
+        return {"company": disp, "hidden": hidden}
+    finally:
+        con.close()
+
+
+def list_hidden() -> list[str]:
+    con = connect()
+    try:
+        return [r[0] for r in con.execute("SELECT company FROM tracker_hidden ORDER BY company")]
     finally:
         con.close()
 

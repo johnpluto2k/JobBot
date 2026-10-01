@@ -90,9 +90,18 @@ CREATE TABLE IF NOT EXISTS tracked_emails (
     company       TEXT,
     category      TEXT,        -- interview_invite | recruiter_reply | rejection | assessment | offer | other
     action        TEXT,
-    gmail_id      TEXT,        -- Gmail thread/message id, for dedupe on re-scan
+    gmail_id      TEXT,        -- Gmail thread id, or '<thread>:<message>' for extra receipts in a thread
     handled       INTEGER DEFAULT 0,
+    role          TEXT,        -- role title named in the email, when one could be read
+    applied       INTEGER DEFAULT 0,  -- 1 = an application receipt (proof the owner applied)
     created_at    TEXT DEFAULT (datetime('now'))
+);
+
+-- Companies the owner marked "not an application" on the Applications page
+-- (a scam interview invite, a talent-community sign-up). The funnel skips them.
+CREATE TABLE IF NOT EXISTS tracker_hidden (
+    company       TEXT PRIMARY KEY,
+    hidden_at     TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -211,6 +220,9 @@ def _migrate(con: sqlite3.Connection) -> None:
     cols = {r["name"] for r in con.execute("PRAGMA table_info(tracked_emails)")}
     if "gmail_id" not in cols:
         con.execute("ALTER TABLE tracked_emails ADD COLUMN gmail_id TEXT")
+    for col, decl in (("role", "TEXT"), ("applied", "INTEGER DEFAULT 0")):
+        if col not in cols:
+            con.execute(f"ALTER TABLE tracked_emails ADD COLUMN {col} {decl}")
     con.execute("CREATE INDEX IF NOT EXISTS idx_email_gmail ON tracked_emails(gmail_id)")
 
     # Add missing columns to jobs table

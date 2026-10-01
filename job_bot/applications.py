@@ -190,33 +190,74 @@ def _ref_date(con) -> date:
         return date.today()
 
 
-def build_applications(ref_date: date | None = None, *, read_only: bool = False) -> list[dict]:
-    """Return one reconciled record per company the owner applied to."""
+def build_applications(ref_date: date | None = None, *, read_only: bool = False,
+                       since: str | None = None) -> list[dict]:
+    """Return one reconciled record per company the owner applied to.
+
+    `since` (YYYY-MM-DD) limits the tracker to the current search season:
+    evidence dated before it is ignored, so an old internship cycle neither
+    shows up nor colours this season's status. It defaults to
+    `config.TRACKER_SINCE` (env JOB_BOT_TRACKER_SINCE); pass "" for all history.
+    """
+    if since is None:
+        from . import config
+        since = config.TRACKER_SINCE
     with closing(connect_readonly() if read_only else connect()) as con:
-        return _build_applications(con, ref_date)
+        return _build_applications(con, ref_date, since=_d(since))
 
 
-def _build_applications(con, ref_date: date | None) -> list[dict]:
+def _columns(con, table: str) -> set[str]:
+    return {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+
+
+# jobs.status -> position status shown in the tracker.
+_JOB_TO_POSITION = {"new": "applied", "networking": "applied", "applied": "applied",
+                    "interview": "interview", "rejected": "rejected", "offer": "offer",
+                    "saved": "saved"}
+OPEN_POSITION = {"applied", "assessment", "interview"}
+# A receipt this close after the ledger snapshot is one of the applications the
+# ledger already lists (Deloitte's 2026-02-16 receipt vs the 2026-02-15 import).
+LEDGER_GRACE_DAYS = 30
+
+
+def _plus(day: str | None, n: int) -> str | None:
+    if not day:
+        return None
+    return (datetime.strptime(day, "%Y-%m-%d").date() + timedelta(days=n)).isoformat()
+
+
+def _build_applications(con, ref_date: date | None, since: str | None = None) -> list[dict]:
+    from .inbox import same_role
+
     ref = ref_date or _ref_date(con)
     ghost_cutoff = (ref - timedelta(days=GHOST_DAYS)).isoformat()
 
+    hidden: set[str] = set()
+    if _columns(con, "tracker_hidden"):
+        hidden = {(r[0] or "").lower() for r in con.execute("SELECT company FROM tracker_hidden")}
+
     apps: dict[str, dict] = {}
+
+    def before_season(when: str | None) -> bool:
+        return bool(since) and (_d(when) or "") < since
 
     def slot(company: str | None) -> dict | None:
         disp = canon(company)
-        if not disp or disp.lower() in _EXCLUDE:
+        if not disp or disp.lower() in _EXCLUDE or disp.lower() in hidden:
             return None
         return apps.setdefault(disp, {
             "company": disp, "roles": set(), "subjects": set(), "n_jobs": 0, "n_emails": 0,
             "first_seen": None, "last_seen": None, "reached_interview": False,
-            "has_offer": False, "has_rejection": False, "any_applied_signal": False,
-            # Dates that decide whether a rejection is the *current* cycle's outcome.
-            # A rejection with no usable date stays sticky (undated_rejection).
-            "last_applied": None, "last_rejected": None, "undated_rejection": False,
-            # Ledger rows all carry the import date (2026-02-15 for 100 rows), so
-            # a ledger rejection can't be ordered against emails. It is only
-            # superseded by a job the owner logged through intake after that date.
-            "ledger_rejected_at": None, "last_tracker": None,
+            "has_offer": False, "any_applied_signal": False,
+            # Rejections that close the whole cycle (no role named, or a ledger /
+            # rejections-table entry). A rejection with no usable date stays sticky.
+            "cycle_rejected": False, "last_rejected": None, "undated_rejection": False,
+            # Ledger rows all carry the import date (2026-02-15 for 100 rows), so a
+            # ledger rejection can't be ordered against emails precisely.
+            "ledger_rejected_at": None, "ledger_date": None,
+            # A rejection naming one role closes that position only.
+            "role_rejections": [], "interview_dates": [],
+            "positions": [], "receipts": [],
         })
 
     def touch(a: dict, when: str | None):
@@ -226,82 +267,118 @@ def _build_applications(con, ref_date: date | None) -> list[dict]:
         a["first_seen"] = w if not a["first_seen"] else min(a["first_seen"], w)
         a["last_seen"] = w if not a["last_seen"] else max(a["last_seen"], w)
 
-    def applied_on(a: dict, when: str | None):
-        a["any_applied_signal"] = True
-        w = _d(when)
-        if w and (not a["last_applied"] or w > a["last_applied"]):
-            a["last_applied"] = w
-
-    def rejected_on(a: dict, when: str | None):
-        a["has_rejection"] = True
+    def cycle_rejected_on(a: dict, when: str | None):
+        a["cycle_rejected"] = True
         w = _d(when)
         if not w:
             a["undated_rejection"] = True
         elif not a["last_rejected"] or w > a["last_rejected"]:
             a["last_rejected"] = w
 
-    # 1) positions ledger (one row per distinct position applied to — verified from
-    #    application-confirmation emails' job IDs/locations + his tracker).
-    for r in con.execute("SELECT company, title, status, date_posted, site FROM jobs "
+    # 1) Positions the owner logged (tracker) or imported (ledger / email).
+    for r in con.execute("SELECT id, company, title, status, date_posted, site, url FROM jobs "
                          "WHERE site IN ('email','tracker','ledger')"):
         a = slot(r["company"])
         if a is None:
             continue
+        if since and (r["site"] != "tracker" or before_season(r["date_posted"])):
+            continue  # imported history predates any season
+        pstatus = _JOB_TO_POSITION.get((r["status"] or "applied").lower(), "applied")
+        if pstatus == "saved":
+            continue  # bookmarked, not applied
         a["n_jobs"] += 1
         if r["title"]:
             a["roles"].add(r["title"].strip())
         a["any_applied_signal"] = True
         d = _d(r["date_posted"])
-        if r["site"] == "tracker":
-            # Logged by the owner through intake - a real application date.
-            if r["status"] == "rejected":
-                rejected_on(a, r["date_posted"])
-            else:
-                applied_on(a, r["date_posted"])
-                if d and (not a["last_tracker"] or d > a["last_tracker"]):
-                    a["last_tracker"] = d
-        elif r["status"] == "rejected":
-            a["has_rejection"] = True
+        logged = r["site"] == "tracker"
+        a["positions"].append({
+            "role": (r["title"] or "").strip() or None, "applied_on": d if logged else None,
+            "source": "logged" if logged else "imported", "status": pstatus,
+            "job_id": r["id"], "url": r["url"] if logged else None, "gmail_id": None,
+        })
+        if pstatus == "interview":
+            a["reached_interview"] = True
+        if logged:
+            touch(a, d)
+            continue
+        if d and (not a["ledger_date"] or d > a["ledger_date"]):
+            a["ledger_date"] = d
+        if pstatus == "rejected":
+            a["cycle_rejected"] = True
             if d and (not a["ledger_rejected_at"] or d > a["ledger_rejected_at"]):
                 a["ledger_rejected_at"] = d
             elif not d:
                 a["undated_rejection"] = True
-        touch(a, r["date_posted"])
+        touch(a, d)
 
-    # 2) Gmail outcome history.
-    for r in con.execute("SELECT company, category, received_at, subject FROM tracked_emails"):
+    # 2) Gmail history.
+    ecols = _columns(con, "tracked_emails")
+    extra = ", ".join(c for c in ("role", "applied", "gmail_id") if c in ecols)
+    role_scoped_rejections: set[tuple[str, str]] = set()
+    for r in con.execute("SELECT company, category, received_at, subject"
+                         + (f", {extra}" if extra else "") + " FROM tracked_emails"):
+        if before_season(r["received_at"]):
+            continue
         a = slot(r["company"])
         if a is None:
             continue
+        cat = r["category"]
+        keys = r.keys()
+        role = r["role"] if "role" in keys else None
+        receipt = cat in ("recruiter_reply", "assessment") and (
+            ("applied" in keys and bool(r["applied"]))
+            or bool(_CONFIRMATION_RE.search(r["subject"] or "")))
         a["n_emails"] += 1
+        if cat == "other":
+            continue  # unclassified mail says nothing about where things stand
         if r["subject"]:
             a["subjects"].add(r["subject"])
         touch(a, r["received_at"])
-        if r["category"] in _STRONG_APPLIED_CATS:
+        # In a season view a rejection alone doesn't prove a *this-season*
+        # application - BlackRock's Sept 2026 "no" was for a 2025 application.
+        if cat in _STRONG_APPLIED_CATS and not (since and cat == "rejection"):
             a["any_applied_signal"] = True
-        elif r["category"] == "recruiter_reply" and _CONFIRMATION_RE.search(r["subject"] or ""):
-            applied_on(a, r["received_at"])
+        if receipt:
+            a["any_applied_signal"] = True
+            a["receipts"].append({"role": role, "day": _d(r["received_at"]),
+                                  "gmail_id": r["gmail_id"] if "gmail_id" in keys else None})
         # A real interview invite counts as reaching the interview stage; a bare
         # online assessment does not (kept consistent with the interviews table).
-        if r["category"] == "interview_invite":
+        if cat == "interview_invite":
             a["reached_interview"] = True
-        if r["category"] == "rejection":
-            rejected_on(a, r["received_at"])
-        if r["category"] == "offer":
+            a["interview_dates"].append((_d(r["received_at"]), role))
+        if cat == "rejection":
+            if role:
+                a["role_rejections"].append((_d(r["received_at"]), role))
+                role_scoped_rejections.add((a["company"], _d(r["received_at"]) or ""))
+            else:
+                cycle_rejected_on(a, r["received_at"])
+        if cat == "offer":
             a["has_offer"] = True
 
     # 3) interviews + rejections + offers tables (authoritative for those signals).
-    for r in con.execute("SELECT company FROM interviews"):
+    for r in con.execute("SELECT company, scheduled_at FROM interviews"):
+        if before_season(r["scheduled_at"]):
+            continue
         a = slot(r["company"])
         if a:
             a["reached_interview"] = True
             a["any_applied_signal"] = True
     for r in con.execute("SELECT company, rejected_on FROM rejections"):
+        if since and before_season(r["rejected_on"] or ""):
+            continue
         a = slot(r["company"])
-        if a:
-            rejected_on(a, r["rejected_on"])
+        if not a:
+            continue
+        if not since:
             a["any_applied_signal"] = True
-    for r in con.execute("SELECT company FROM offers WHERE status='open'"):
+        # Already counted, scoped to its role, from the email that logged it.
+        if (a["company"], _d(r["rejected_on"]) or "") in role_scoped_rejections:
+            continue
+        cycle_rejected_on(a, r["rejected_on"])
+    for r in con.execute("SELECT company FROM offers WHERE status='open'"
+                         + (" AND created_at >= ?" if since else ""), (since,) if since else ()):
         a = slot(r["company"])
         if a:
             a["has_offer"] = True
@@ -310,30 +387,97 @@ def _build_applications(con, ref_date: date | None) -> list[dict]:
     for a in apps.values():
         if not a["any_applied_signal"]:
             continue  # company we only ever got marketing from — not an application
-        # Re-applied after the most recent rejection? Then that rejection belongs
-        # to a closed cycle and must not colour the new one. Any undated
-        # rejection keeps the old sticky behaviour - we can't prove it's older.
-        reapplied = bool(
-            a["has_rejection"] and not a["undated_rejection"] and a["last_applied"]
-            # newer than every dated rejection (emails / rejections table) ...
-            and (not a["last_rejected"] or a["last_applied"] > a["last_rejected"])
-            # ... and, if the ledger holds a rejection, a tracker-logged job
-            # postdates the ledger snapshot. Confirmation emails alone can't
-            # supersede a ledger rejection: Deloitte's Feb-2026 receipts are the
-            # very applications the ledger then marks rejected.
-            and (not a["ledger_rejected_at"]
-                 or (a["last_tracker"] and a["last_tracker"] > a["ledger_rejected_at"]))
-        )
+        positions = a["positions"]
+
+        # Receipts → positions. A receipt for a position already listed attaches
+        # to it; a receipt from the ledger's own era is one of the ledger's rows.
+        ledger_cover = _plus(a["ledger_date"], LEDGER_GRACE_DAYS)
+        # Receipts that name a role first, so a same-day "thanks for applying"
+        # without one folds into that position instead of becoming a phantom.
+        for rc in sorted(a["receipts"], key=lambda x: (x["role"] is None, x["day"] or "")):
+            day, role = rc["day"], rc["role"]
+            match = None
+            for p in positions:
+                if role and p["role"] and same_role(p["role"], role):
+                    match = p
+                elif not role and p["source"] in ("logged", "gmail") and p["applied_on"] and day \
+                        and abs((datetime.strptime(p["applied_on"], "%Y-%m-%d")
+                                 - datetime.strptime(day, "%Y-%m-%d")).days) <= 3:
+                    match = p
+                if match:
+                    break
+            if match:
+                match["applied_on"] = match["applied_on"] or day
+                match["gmail_id"] = match["gmail_id"] or rc["gmail_id"]
+                if role and not match["role"]:
+                    match["role"] = role
+                continue
+            if ledger_cover and day and day <= ledger_cover:
+                continue
+            positions.append({"role": role, "applied_on": day, "source": "gmail",
+                              "status": "applied", "job_id": None, "url": None,
+                              "gmail_id": rc["gmail_id"]})
+            if role:
+                a["roles"].add(role)
+
+        # Later signals that name a role move that position.
+        for day, role in a["role_rejections"]:
+            hit = [p for p in positions if p["role"] and same_role(p["role"], role)]
+            for p in hit:
+                if p["status"] in OPEN_POSITION:
+                    p["status"] = "rejected"
+            if not hit:
+                a["roles"].add(role)
+        for day, role in a["interview_dates"]:
+            for p in positions:
+                if p["status"] == "applied" and p["applied_on"] and day and day >= p["applied_on"] \
+                        and (not role or (p["role"] and same_role(p["role"], role))):
+                    p["status"] = "interview"
+
+        # Which positions are live in the current cycle?
+        def is_new_open(p: dict) -> bool:
+            if p["status"] not in OPEN_POSITION or p["source"] == "imported":
+                return False
+            if not a["cycle_rejected"]:
+                return True
+            if a["undated_rejection"] or not p["applied_on"]:
+                return False
+            if a["last_rejected"] and p["applied_on"] <= a["last_rejected"]:
+                return False
+            if a["ledger_rejected_at"]:
+                bar = a["ledger_rejected_at"] if p["source"] == "logged" else _plus(
+                    a["ledger_rejected_at"], LEDGER_GRACE_DAYS)
+                if p["applied_on"] <= bar:
+                    return False
+            return True
+
+        open_now = [p for p in positions if is_new_open(p)]
+        for p in positions:
+            # A cycle rejection dated after an open position closes it too.
+            if p["status"] in OPEN_POSITION and p["source"] != "imported" and p not in open_now \
+                    and a["cycle_rejected"]:
+                p["status"] = "rejected"
+        has_rejection = a["cycle_rejected"] or any(p["status"] == "rejected" for p in positions) \
+            or bool(a["role_rejections"])
+        reapplied = bool(a["cycle_rejected"] and open_now)
+        cycle_start = min((p["applied_on"] for p in open_now if p["applied_on"]), default=None)
+        interviewing_now = any(p["status"] == "interview" for p in open_now) or (
+            a["reached_interview"] and not reapplied) or any(
+            d and cycle_start and d >= cycle_start for d, _ in a["interview_dates"])
+        last_applied = max((p["applied_on"] for p in positions if p["applied_on"]), default=None)
+
         if a["has_offer"]:
             status = "offer"
-        elif a["has_rejection"] and not reapplied:
+        elif has_rejection and not open_now:
             status = "rejected"
         elif a["last_seen"] and a["last_seen"] < ghost_cutoff:
             status = "ghosted"
-        elif a["reached_interview"]:
+        elif interviewing_now:
             status = "interviewing"
         else:
             status = "in_review"
+
+        positions.sort(key=lambda p: (p["status"] not in OPEN_POSITION, -(int((p["applied_on"] or "0").replace("-", "")))))
         rec = {
             "company": a["company"], "status": status,
             "reached_interview": a["reached_interview"],
@@ -344,10 +488,13 @@ def _build_applications(con, ref_date: date | None) -> list[dict]:
             # positions = distinct application instances (each ledger row is one
             # posting/job-ID), NOT deduped titles — a firm applied to at several
             # locations counts each separately.
-            "positions": max(a["n_jobs"], len(a["roles"]), 1),
+            "positions": max(len(positions), 1),
+            "open_positions": len(open_now) if (open_now or has_rejection) else
+            sum(1 for p in positions if p["status"] in OPEN_POSITION),
+            "positions_detail": positions,
             "roles": sorted(a["roles"]),
             "emails": a["n_emails"], "first_seen": a["first_seen"],
-            "last_seen": a["last_seen"],
+            "last_seen": a["last_seen"], "last_applied": last_applied,
         }
         field = _app_field(list(a["roles"]) + list(a["subjects"]))
         if field == "Other" and a["company"] in _COMPANY_FIELD_HINTS:

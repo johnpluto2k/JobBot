@@ -21,7 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { AppHeader } from '@/components/AppHeader'
-import { ApplicationsTable } from '@/components/ApplicationsTable'
+import { ApplicationsPage } from '@/components/ApplicationsPage'
 import { BriefTab } from '@/components/BriefTab'
 import { CoachTab } from '@/components/CoachTab'
 import { CompanyTrackerTab } from '@/components/CompanyTrackerTab'
@@ -140,8 +140,10 @@ export default function App() {
 
 function Dashboard({ auth }: { auth: AuthStatus }) {
   const profile = useAsync(api.profile, [])
-  const summary = useAsync(api.summary, [])
-  const apps = useAsync(api.applications, [])
+  // Bumped after a Gmail sync or a tracker edit so the numbers never go stale.
+  const [dataVersion, setDataVersion] = useState(0)
+  const bump = () => setDataVersion((n) => n + 1)
+  const summary = useAsync(api.summary, [dataVersion])
   const jobs = useAsync(() => api.jobs({ limit: 100 }), [])
 
   const [page, setPage] = useState<PageKey>(() => {
@@ -212,21 +214,7 @@ function Dashboard({ auth }: { auth: AuthStatus }) {
       case 'coach':
         return <CoachTab />
       case 'applications':
-        return (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {apps.data?.length ?? 0} companies · reconciled from your tracker, Gmail history, interviews, rejections,
-              and offers.
-            </p>
-            {apps.error ? (
-              <ErrorNote error={apps.error} />
-            ) : apps.loading ? (
-              <div className="h-64 animate-pulse rounded-xl border border-border bg-card" />
-            ) : (
-              <ApplicationsTable apps={apps.data ?? []} />
-            )}
-          </div>
-        )
+        return <ApplicationsPage refreshToken={dataVersion} onChanged={bump} />
       case 'pipeline':
         return (
           <div className="space-y-4">
@@ -340,7 +328,7 @@ function Dashboard({ auth }: { auth: AuthStatus }) {
           <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
             <AppHeader profile={profile.data} />
             <div className="flex items-center gap-2">
-              <SyncIndicator />
+              <SyncIndicator onSynced={bump} />
               <button
                 onClick={signOut}
                 title={auth.email ? `Sign out (${auth.email})` : 'Sign out'}

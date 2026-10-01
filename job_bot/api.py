@@ -193,6 +193,21 @@ def sync_now() -> dict:
     return status
 
 
+@app.post("/api/resync-gmail")
+def resync_gmail(days: int = 60) -> dict:
+    """Re-read the last `days` of Gmail and rebuild those tracker rows with the
+    current classifier (fixes history a normal sync would skip as already seen)."""
+    if not google_auth.token_record():
+        return JSONResponse({"detail": "Gmail not connected — sign in first"},
+                            status_code=409)
+    days = max(1, min(days, 365))
+    try:
+        r = gmail_client.resync(days=days)
+    except Exception as exc:
+        return JSONResponse({"detail": f"{type(exc).__name__}: {exc}"}, status_code=502)
+    return {k: r[k] for k in ("scanned", "new", "noise", "dropped", "replaced", "by_category")}
+
+
 @app.get("/api/watch/status")
 def watch_status() -> dict:
     """Which companies are being polled, and what the last pass found."""
@@ -284,19 +299,103 @@ def summary() -> dict:
     s = applications.summary()
     # Attach human labels so the client doesn't hard-code the status vocabulary.
     s["status_labels"] = applications.STATUS_LABEL
+    s["since"] = config.TRACKER_SINCE
     return s
 
 
 @app.get("/api/applications")
-def applications_list() -> list[dict]:
-    """One reconciled record per company applied to (for the applications table)."""
+def applications_list(all_history: bool = False) -> list[dict]:
+    """One reconciled record per company applied to (for the applications table).
+
+    Scoped to the current season (JOB_BOT_TRACKER_SINCE) unless `all_history`."""
     if not DB_PATH.exists():
         return []
-    apps = applications.build_applications()
+    apps = applications.build_applications(since="" if all_history else None)
     labels = applications.STATUS_LABEL
     for a in apps:
         a["status_label"] = labels.get(a["status"], a["status"])
     return apps
+
+
+class PositionStatusRequest(BaseModel):
+    status: str
+
+
+@app.patch("/api/applications/positions/{job_id}")
+def update_position(job_id: int, req: PositionStatusRequest) -> dict:
+    """Change the status of one logged position (applied → interview → offer ...)."""
+    from . import intake
+
+    try:
+        return intake.set_status(job_id, req.status)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+
+class TrackRequest(BaseModel):
+    company: str
+    title: str | None = None
+    url: str | None = None
+    portal: str = "other"
+    status: str = "applied"
+    applied_on: str | None = None
+    gmail_id: str | None = None
+    notes: str | None = None
+
+
+def _manual_key(company: str, title: str) -> str:
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "-", f"{company} {title}".lower()).strip("-")
+    return f"manual://{slug}"
+
+
+@app.post("/api/applications/track")
+def track_application(req: TrackRequest) -> dict:
+    """Log a position — typed in by hand, or promoted from a Gmail receipt so its
+    status can be edited. A posting URL is optional: without one the position is
+    keyed by its Gmail message, or by company + title."""
+    from . import intake
+
+    title = (req.title or "").strip() or "Role not named"
+    url = (req.url or "").strip()
+    if not url and req.gmail_id:
+        url = f"https://mail.google.com/mail/u/0/#all/{req.gmail_id.split(':')[-1]}"
+    if not url:
+        url = _manual_key(req.company, title)
+    portal = req.portal if req.portal in intake.VALID_PORTALS else "other"
+    if req.gmail_id and portal == "other":
+        portal = "email"
+    try:
+        return intake.log_job(url=url, company_name=req.company, title=title, portal=portal,
+                              status=req.status, notes=req.notes, applied_on=req.applied_on)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+
+class HideRequest(BaseModel):
+    company: str
+    hidden: bool = True
+
+
+@app.post("/api/applications/hide")
+def hide_application(req: HideRequest) -> dict:
+    """Mark a company as "not an application" so it drops out of the funnel."""
+    from . import intake
+
+    try:
+        return intake.set_hidden(req.company, req.hidden)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+
+@app.get("/api/applications/hidden")
+def hidden_applications() -> list[str]:
+    from . import intake
+
+    if not DB_PATH.exists():
+        return []
+    return intake.list_hidden()
 
 
 @app.get("/api/jobs")

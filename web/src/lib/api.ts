@@ -32,6 +32,21 @@ export interface Summary {
   offers: number
   response_rate: number
   interview_rate: number
+  /** Start of the current season (YYYY-MM-DD); empty = all history. */
+  since?: string
+}
+
+export type PositionStatus = 'applied' | 'assessment' | 'interview' | 'rejected' | 'offer'
+
+export interface Position {
+  role: string | null
+  applied_on: string | null
+  /** logged = you entered it; gmail = read from a receipt; imported = old ledger. */
+  source: 'logged' | 'gmail' | 'imported'
+  status: PositionStatus
+  job_id: number | null
+  url: string | null
+  gmail_id: string | null
 }
 
 export interface Application {
@@ -46,6 +61,9 @@ export interface Application {
   emails: number
   first_seen: string | null
   last_seen: string | null
+  last_applied: string | null
+  open_positions: number
+  positions_detail: Position[]
   field: string
 }
 
@@ -496,6 +514,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function send<T>(method: string, path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`${path} → ${res.status} ${res.statusText}`)
+  return res.json() as Promise<T>
+}
+
 export const api = {
   authStatus: () => get<AuthStatus>('/api/auth/status'),
   logout: () => post<{ ok: boolean }>('/api/auth/logout', {}),
@@ -504,7 +532,23 @@ export const api = {
   profile: () => get<Profile>('/api/profile'),
   overview: () => get<Overview>('/api/overview'),
   summary: () => get<Summary>('/api/summary'),
-  applications: () => get<Application[]>('/api/applications'),
+  applications: (allHistory = false) =>
+    get<Application[]>(`/api/applications${allHistory ? '?all_history=true' : ''}`),
+  track: (body: {
+    company: string
+    title?: string
+    url?: string
+    portal?: string
+    status?: string
+    applied_on?: string
+    gmail_id?: string
+    notes?: string
+  }) => post<IntakeResult>('/api/applications/track', body),
+  setPositionStatus: (jobId: number, status: string) =>
+    send<{ id?: number; status?: string; error?: string }>('PATCH', `/api/applications/positions/${jobId}`, { status }),
+  hiddenCompanies: () => get<string[]>('/api/applications/hidden'),
+  hideCompany: (company: string, hidden = true) =>
+    post<{ company?: string; hidden?: boolean; error?: string }>('/api/applications/hide', { company, hidden }),
   jobs: (params?: { status?: string; limit?: number }) => {
     const q = new URLSearchParams()
     if (params?.status) q.set('status', params.status)

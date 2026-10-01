@@ -19,6 +19,7 @@ refreshes the access token transparently.
 from __future__ import annotations
 
 import base64
+from html import unescape as _unescape
 import json
 import os
 import re
@@ -39,7 +40,7 @@ DEFAULT_QUERY = (
 )
 SYNC_QUERY = os.getenv("GMAIL_SYNC_QUERY", DEFAULT_QUERY)
 SYNC_DAYS = int(os.getenv("GMAIL_SYNC_DAYS", "7"))
-SYNC_MAX_THREADS = int(os.getenv("GMAIL_SYNC_MAX_THREADS", "50"))
+SYNC_MAX_THREADS = int(os.getenv("GMAIL_SYNC_MAX_THREADS", "100"))
 
 STATUS_PATH = config.OUTPUT_DIR / "gmail_sync_status.json"
 
@@ -70,6 +71,7 @@ def _headers(payload: dict) -> dict[str, str]:
 def _strip_html(html: str) -> str:
     text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
     text = re.sub(r"<[^>]+>", " ", text)
+    text = _unescape(text).replace("\xa0", " ")
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -164,10 +166,34 @@ def fetch_recent_threads(days: int = SYNC_DAYS,
             break
     out = []
     for ref in refs[:max_threads]:
-        raw = svc.users().threads().get(
-            userId="me", id=ref["id"], format="full").execute()
+        raw = _with_backoff(svc.users().threads().get(
+            userId="me", id=ref["id"], format="full"))
         out.append(thread_to_record(raw))
     return out
+
+
+def _with_backoff(request, attempts: int = 5):
+    """Execute a Gmail request, waiting out per-minute quota errors.
+
+    A backfill of a few hundred threads trips "Units per minute per user"
+    (HTTP 403/429 rateLimitExceeded) partway through; the quota refills within
+    a minute, so wait and retry rather than failing the whole pass.
+    """
+    from googleapiclient.errors import HttpError
+
+    for i in range(attempts):
+        try:
+            return request.execute()
+        except (ConnectionError, TimeoutError):
+            # A long backfill also sees the odd reset connection (WinError 10054).
+            if i == attempts - 1:
+                raise
+            time.sleep(2 * (i + 1))
+        except HttpError as exc:
+            status = getattr(exc.resp, "status", 0)
+            if status not in (403, 429) or "rate" not in str(exc).lower() or i == attempts - 1:
+                raise
+            time.sleep(min(60, 5 * 2 ** i))
 
 
 # --- Sync orchestration + status -------------------------------------------------
@@ -222,6 +248,63 @@ def run_sync(days: int = SYNC_DAYS, max_threads: int = SYNC_MAX_THREADS) -> dict
         _sync_lock.release()
 
 
+def resync(days: int = 60, max_threads: int = 400) -> dict:
+    """Re-read recent threads and rebuild their tracker rows with the current
+    classifier.
+
+    A normal sync skips any thread it has seen, so a fix to classification or
+    company detection never reached rows already stored: IBM's assessment
+    stayed a rejection, three Mastercard receipts stayed one row with no
+    company. This replaces the rows for every fetched thread, keeps each row's
+    `handled` flag, and removes the auto-logged rejection a misread email
+    created (rejections with source='inbox' for that company and date).
+    """
+    from .db import connect
+    from .gmail_sync import sync_threads
+
+    with _sync_lock:
+        threads = fetch_recent_threads(days=days, max_threads=max_threads)
+        con = connect()
+        try:
+            handled: dict[str, int] = {}
+            removed = 0
+            for t in threads:
+                tid = t.get("id")
+                if not tid:
+                    continue
+                rows = con.execute(
+                    "SELECT id, gmail_id, company, category, received_at, handled "
+                    "FROM tracked_emails WHERE gmail_id = ? OR gmail_id LIKE ?",
+                    (tid, f"{tid}:%")).fetchall()
+                for r in rows:
+                    handled[r["gmail_id"]] = r["handled"] or 0
+                    if r["category"] == "rejection" and r["company"]:
+                        victim = con.execute(
+                            "SELECT id FROM rejections WHERE source='inbox' AND company=? "
+                            "AND rejected_on=? LIMIT 1",
+                            (r["company"], r["received_at"])).fetchone()
+                        if victim:
+                            con.execute("DELETE FROM rejections WHERE id=?", (victim["id"],))
+                    con.execute("DELETE FROM tracked_emails WHERE id=?", (r["id"],))
+                    removed += 1
+            con.commit()
+        finally:
+            con.close()
+
+        summary = sync_threads(threads)
+
+        con = connect()
+        try:
+            for gid, flag in handled.items():
+                if flag:
+                    con.execute("UPDATE tracked_emails SET handled=? WHERE gmail_id=?", (flag, gid))
+            con.commit()
+        finally:
+            con.close()
+    summary["replaced"] = removed
+    return summary
+
+
 def run_sync_if_logged_in() -> None:
     """Scheduler entry point: no-op until the user has logged in once."""
     if google_auth.token_record():
@@ -229,9 +312,18 @@ def run_sync_if_logged_in() -> None:
 
 
 if __name__ == "__main__":  # manual one-shot: python -m job_bot.gmail_client
+    # python -m job_bot.gmail_client --resync 60   → rebuild the last 60 days
+    import sys
+
     from .gmail_sync import format_report, sync_threads
 
     t0 = time.time()
-    threads = fetch_recent_threads()
-    print(format_report(sync_threads(threads)))
+    if len(sys.argv) > 1 and sys.argv[1] == "--resync":
+        n = int(sys.argv[2]) if len(sys.argv) > 2 else 60
+        result = resync(days=n)
+        print(format_report(result))
+        print(f"replaced {result['replaced']} stored rows")
+    else:
+        threads = fetch_recent_threads()
+        print(format_report(sync_threads(threads)))
     print(f"({time.time() - t0:.1f}s)")

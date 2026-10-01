@@ -3,6 +3,30 @@
 Dated history of the major passes. Newest first. Details for older entries
 live in `docs/archive/` and the git log.
 
+## 2026-09-30 — Per-position tracker, Gmail receipts, LinkedIn skill
+
+- **The tracker lists positions, not just companies.** Each company row holds
+  the positions you logged, the ones read from Gmail receipts, and imported
+  history, each with its own status. A rejection that names a role closes only
+  that role; a newer application after an old rejection stays open.
+- **Gmail reads every receipt.** Each application receipt in a thread is its
+  own record (three roles applied to in one evening are three positions), with
+  the role title extracted. Subject-line signals beat body fine print,
+  "unfortunately" alone is no longer a rejection, quoted replies are ignored,
+  assessments no longer count as interviews, and ATS relay hosts like
+  `<employer>.tal.net` resolve to the employer.
+- **Resync.** `python -m job_bot.gmail_client --resync 60` (or
+  `POST /api/resync-gmail`) rebuilds recent mail with the current classifier,
+  keeping "handled" flags. Gmail rate limits are waited out.
+- **Applications page.** Log an application without a URL and with a
+  back-dated applied-on date, edit any position's status, mark a company "Not
+  an application", and scope to a season with `JOB_BOT_TRACKER_SINCE`. The
+  dashboard refetches after each sync or edit.
+- **LinkedIn networking skill** (`skills/linkedin-networking/`, built in
+  Codex): drafts a connection note from the profile you select, plus replies
+  and follow-ups. Personal outreach records stay in `data/`.
+- **README rewritten** around the seven-step process. 121 tests.
+
 ## 2026-09-07 — Coaching memory, shared snapshot, and a repo anyone can run
 
 - **One read-only snapshot for every coach.** `job_bot/coach_context.py` now

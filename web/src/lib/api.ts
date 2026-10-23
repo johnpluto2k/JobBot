@@ -491,6 +491,8 @@ export interface SyncResult {
 }
 export interface SyncStatus {
   gmail_connected: boolean
+  /** False when the stored login lacks the Gmail scope (a box left unticked at consent). */
+  gmail_granted?: boolean
   running: boolean
   interval_minutes: number
   last_sync: string | null

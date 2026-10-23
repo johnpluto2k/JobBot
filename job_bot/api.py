@@ -177,6 +177,7 @@ def sync_status() -> dict:
     status = gmail_client.load_status()
     status["running"] = gmail_client.sync_running()
     status["gmail_connected"] = google_auth.token_record() is not None
+    status["gmail_granted"] = google_auth.gmail_granted()
     status["interval_minutes"] = 15
     return status
 

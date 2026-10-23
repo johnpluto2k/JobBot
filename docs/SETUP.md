@@ -58,16 +58,27 @@ sends, labels, or deletes mail.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/) create a project
    and enable the **Gmail API**.
-2. Configure the OAuth consent screen (External, testing mode, add your own
-   Gmail address as a test user).
+2. Configure the OAuth consent screen (**Google Auth Platform → Audience**):
+   user type External, add your own Gmail address as a test user, then click
+   **Publish app** so the publishing status reads **In production**. In
+   *Testing* status Google expires the refresh token **7 days** after each
+   sign-in and sync silently stops. A personal, unverified app in production
+   is fine: Google shows a "Google hasn't verified this app" screen at sign-in
+   (choose *Advanced → Go to … (unsafe)*). The app only runs on your machine
+   and its client secret stays in your `.env`.
 3. Create an **OAuth 2.0 Client ID** of type *Web application* with
    `http://localhost:8000/auth/callback` as an authorized redirect URI.
 4. Put the client id and secret in `.env` as `GOOGLE_CLIENT_ID` and
    `GOOGLE_CLIENT_SECRET`.
 
+At sign-in, **tick every permission box**, including *View your email messages
+and settings*. Google lets you untick individual scopes; a login without the
+Gmail one signs you in to the dashboard but cannot sync.
+
 The refresh token, session, and sync status land under `data/` (gitignored).
-If sync later fails with `invalid_grant`, the dashboard shows a **Reconnect
-Google** link; testing-mode consent expires periodically.
+When sync fails because the login expired, was revoked, or lacks Gmail
+permission, the header's sync chip and the Coach tab show a **Reconnect
+Google** link with the reason.
 
 ## 4. Your documents and profile
 

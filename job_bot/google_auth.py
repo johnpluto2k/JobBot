@@ -40,12 +40,19 @@ TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 
 # Full-URL forms — Google echoes these back, and gmail_client passes them to
 # google-auth, which compares them verbatim on refresh.
+GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
-    "https://www.googleapis.com/auth/gmail.readonly",
+    GMAIL_SCOPE,
 ]
+
+# Shown wherever sync fails for want of the Gmail scope. Google's consent screen
+# lets the user untick individual permissions; the 2026-10-01 login came back
+# with profile + email only and every sync after it failed.
+GMAIL_NOT_GRANTED = ("Gmail permission not granted: reconnect Google and tick "
+                     "\"View your email messages and settings\" on the consent screen.")
 
 TOKEN_PATH = config.OUTPUT_DIR / "google_token.json"
 SESSION_PATH = config.OUTPUT_DIR / "app_session.json"
@@ -160,6 +167,12 @@ def token_record() -> dict | None:
         return rec if rec.get("refresh_token") else None
     except Exception:
         return None
+
+
+def gmail_granted(rec: dict | None = None) -> bool:
+    """True when the stored login includes read access to Gmail."""
+    rec = rec if rec is not None else token_record()
+    return bool(rec) and GMAIL_SCOPE in (rec.get("scopes") or [])
 
 
 def google_email() -> str | None:

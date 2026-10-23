@@ -62,7 +62,7 @@ function ContextStrip({ snap }: { snap: CoachSnapshot }) {
 
 function DataStatus({ snap }: { snap: CoachSnapshot }) {
   const lastSync = snap.freshness?.last_successful_sync
-  const reconnect = /invalid_grant|expired|revoked/i.test(snap.freshness?.last_error ?? '')
+  const reconnect = /invalid_grant|expired|revoked|not granted/i.test(snap.freshness?.last_error ?? '')
   return (
     <div className="space-y-2 rounded-lg border border-border bg-card p-3 text-sm">
       <p className="text-muted-foreground">

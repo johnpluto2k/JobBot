@@ -137,7 +137,27 @@ def _credentials():
     rec = google_auth.token_record()
     if not rec:
         raise RuntimeError("not logged in — no Google refresh token stored")
+    if not google_auth.gmail_granted(rec):
+        raise PermissionError(google_auth.GMAIL_NOT_GRANTED)
     return Credentials.from_authorized_user_info(rec)
+
+
+# A refresh token Google no longer honours. In an OAuth app left in "Testing"
+# publishing status that happens every 7 days, which is why sync kept dying
+# about a week after each sign-in.
+TOKEN_EXPIRED = ("invalid_grant: the Google sign-in expired or was revoked. Reconnect "
+                 "Google. If this recurs about a week after each sign-in, the OAuth app "
+                 "is in Testing mode; publish it (docs/SETUP.md, Google sign-in).")
+
+
+def describe_error(exc: Exception) -> str:
+    """The sync error as the dashboard should show it."""
+    text = f"{type(exc).__name__}: {exc}"
+    if isinstance(exc, PermissionError):
+        return str(exc)
+    if "invalid_grant" in text:
+        return TOKEN_EXPIRED
+    return text
 
 
 def _service():
@@ -240,7 +260,7 @@ def run_sync(days: int = SYNC_DAYS, max_threads: int = SYNC_MAX_THREADS) -> dict
             }
         except Exception as exc:
             status = load_status()
-            status["last_error"] = f"{type(exc).__name__}: {exc}"
+            status["last_error"] = describe_error(exc)
             status["last_error_at"] = datetime.now(timezone.utc).isoformat()
         _write_status(status)
         return status

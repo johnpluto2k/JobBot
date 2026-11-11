@@ -7,7 +7,12 @@
 # The first time, it also opens the two pages where you connect Google Drive
 # and Chrome. Nothing is installed without asking first.
 #
+# Where the coach opens: if the Orca app is installed and this folder is open
+# in it, the coach opens as a "Career Coach" tab in Orca. Otherwise it opens
+# right here in this window.
+#
 #   DRY_RUN=1   print what would be opened or started, and start nothing
+#   NO_ORCA=1   open the coach in this window even if Orca is installed
 
 cd "$(dirname "$0")" || exit 1
 
@@ -84,6 +89,41 @@ else
   prompt="Where are we?"
 fi
 
+# ---- 4. Open the coach: in Orca when this folder is open there, else here -----
 step "Starting the coach..."
-if [ -n "$DRY_RUN" ]; then say "[dry run] would run: claude --chrome \"$prompt\""; exit 0; fi
+command="claude --chrome \"$prompt\""
+
+# Find Orca's command-line tool. On Linux a bare `orca` is the GNOME screen
+# reader, not this app, so only `orca-ide` is used there.
+orca_cli=""
+if [ -n "$ORCA_CLI_COMMAND" ]; then orca_cli="$ORCA_CLI_COMMAND"
+elif [ "$(uname)" = "Linux" ]; then have orca-ide && orca_cli="orca-ide"
+elif have orca; then orca_cli="orca"
+fi
+
+if [ -n "$orca_cli" ] && [ -z "$NO_ORCA" ]; then
+  selector="path:$(pwd)"
+  if [ -n "$DRY_RUN" ]; then
+    say "[dry run] Orca is installed; would open a Career Coach tab there if this folder is open in it: $command"
+    exit 0
+  fi
+  "$orca_cli" open --json >/dev/null 2>&1      # starts Orca, or brings its window forward
+  tries=0
+  until "$orca_cli" status --json 2>/dev/null | grep -q '"reachable": *true' || [ "$tries" -ge 30 ]; do
+    tries=$((tries + 1)); sleep 1
+  done
+  if "$orca_cli" worktree show --worktree "$selector" --json 2>/dev/null | grep -q '"ok": *true'; then
+    if "$orca_cli" terminal create --worktree "$selector" --title "Career Coach" \
+         --command "$command" --focus --json 2>/dev/null | grep -q '"ok": *true'; then
+      say "Your coach is open in Orca."
+      exit 0
+    fi
+    say "Could not open a tab in Orca, so the coach will open here."
+  else
+    say "Orca is installed, but this folder is not open in it, so the coach will open here."
+    say "(Add this folder as a project in Orca to have the coach open there next time.)"
+  fi
+fi
+
+if [ -n "$DRY_RUN" ]; then say "[dry run] would run here: $command"; exit 0; fi
 exec claude --chrome "$prompt"

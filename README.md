@@ -43,7 +43,7 @@ You need a paid Claude plan, a Google account, and Chrome.
 
 | You'll use | |
 |---|---|
-| `Start Coach - Windows` / `Start Coach - Mac` | Double-click to open your sheet and your coach |
+| `Start Coach - Windows` / `Start Coach - Mac` | Double-click to open your sheet and your coach (as a tab in Orca if you use it, otherwise in its own window) |
 | `SETUP.md` | The setup walkthrough |
 | `documents/` | Where you put everything you already have |
 | `applications/` | Where the coach puts each application, one folder per job |
@@ -97,9 +97,7 @@ sentences", "use 4 bullets for my main job") and it records it in
 This started as one student's job-search tool and was used for about fifty
 applications before being opened up. The rules in it are the ones that
 survived that search. An earlier version was a web dashboard with a database;
-it is kept at the
-[`v0.2-dashboard`](https://github.com/johnpluto2k/JobBot/tree/v0.2-dashboard)
-tag.
+it is still in the git history.
 
 Improvements are welcome, especially for fields other than business and
 technology: see [CONTRIBUTING](.github/CONTRIBUTING.md),

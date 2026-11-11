@@ -74,6 +74,10 @@ It asks before each step and waits for you.
 Double-click **Start Coach** again. It opens your tracker sheet and the coach,
 which tells you where things stand.
 
+If you use the Orca app and this folder is open in it, the coach opens as a
+"Career Coach" tab there. If you don't, it opens in its own window. There is
+nothing to set up either way.
+
 | You say | The coach does |
 |---|---|
 | "Tailor an application for this posting:" and paste the link | Builds a one-page resume and cover letter in `applications` |

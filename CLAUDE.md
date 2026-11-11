@@ -41,7 +41,7 @@ Public, shipped with the project:
 | `.claude/agents/` | Helpers: résumé tailor, recruiter reviewer, outreach drafter, inbox triager, job scout, growth planner |
 | `templates/` | Blank tracker workbook, LaTeX templates, blank coach files |
 | `tools/check_resume.py` | Measures a compiled PDF against the résumé rules |
-| `Start Coach - Windows.cmd`, `Start Coach - Mac.command` | Launchers: check installs, open the sheet, start the coach (`tools/start.ps1` on Windows) |
+| `Start Coach - Windows.cmd`, `Start Coach - Mac.command` | Launchers: check installs, open the sheet, start the coach (`tools/start.ps1` on Windows). The coach opens as a tab in Orca when the folder is open there, otherwise in the launcher's window |
 | `examples/` | A fictional person's finished résumé and letter |
 
 Private, created by setup, gitignored, never committed:

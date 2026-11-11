@@ -8,7 +8,7 @@ The project is now a Claude Code career coach, not a web app.
 
 - **Removed:** the FastAPI server, the React dashboard, Google sign-in, the
   Gmail sync, the SQLite database, the company posting watcher, the Streamlit
-  tools and the demo mode. All of it is preserved at the `v0.2-dashboard` tag.
+  tools and the demo mode. All of it is still in the git history.
 - **Tracking is a Google Sheet.** `templates/tracker_template.xlsx` becomes the
   user's own sheet during setup: one row per application (company, position,
   date, status, details, portal, cold apply, location, pay, work mode, grad
@@ -31,8 +31,10 @@ The project is now a Claude Code career coach, not a web app.
 - **Launchers:** double-click `Start Coach - Windows` or `Start Coach - Mac`.
   They check Claude Code and Python are installed (asking before installing),
   open the two connect pages on a first run, then open the sheet and the coach.
+  With the Orca app installed and the folder open in it, the coach opens as a
+  tab there; otherwise it opens in the launcher's own window.
 
-## 2026-11-10: v0.2-dashboard
+## 2026-11-10: Last dashboard version
 
 Last version of the dashboard app: fictional demo, sign-in-free local mode, a
 single `serve / demo / doctor` entry point, packaging with optional extras,
@@ -42,5 +44,4 @@ MIT license, contributing and security files.
 
 The dashboard era, from July to October 2026: profile extraction, ATS scoring,
 tailored generation, a company-first tracker, Gmail sync, a posting watcher
-and the first version of the coach. The full history is in the git log and in
-`docs/CHANGELOG.md` at the `v0.2-dashboard` tag.
+and the first version of the coach. The full history is in the git log.

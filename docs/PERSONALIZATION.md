@@ -52,7 +52,7 @@ In rough order of how much they shape what you see:
 | `job_bot/skills_ontology.py` | canonical skills, synonyms, role families, market and company signals used by the ATS scorer and growth plan | Add your field's skills and role titles; the scorer only credits what it knows. |
 | `job_bot/applications.py` `_FIELD_SIGNALS` | maps job titles to career fields for the funnel's field mix | Add your fields' title patterns. |
 | `job_bot/portals.py` `DEFAULT_KEYWORDS`, `_SENIOR_RE` | title keywords the watcher and portal scan keep | Replace with titles you'd apply to. |
-| `job_bot/watch_registry.py` | 88 verified company job-board endpoints, mostly Big 4, GRC-tech, govcon, DMV employers | Keep what overlaps; add yours only after verifying the endpoint live. |
+| `job_bot/watch_registry.py` | 91 verified company job-board endpoints, mostly Big 4, GRC-tech, govcon, DMV employers | Keep what overlaps; add yours only after verifying the endpoint live. |
 | `scripts/seed_broad_targets.py` | ~150 target companies with tiers and fields | Replace the list before running. |
 | `job_bot/company_research.py` `FIRM_KB` | curated hiring-process intel for Big 4 and a few others | Add entries for your target firms or rely on `--news`. |
 | `job_bot/offers.py` `COL_INDEX`, `job_bot/salary.py` `ROLE_BASELINES` | cost-of-living indices and salary baselines weighted to the DC area and entry-level finance | Extend the tables for your cities and level. |

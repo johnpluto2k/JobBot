@@ -26,6 +26,12 @@ def _sync_freshness(now: datetime) -> dict:
         if not isinstance(status, dict):
             raise ValueError("Expected a JSON object")
     except (OSError, ValueError) as exc:
+        from . import google_auth
+
+        if not path.exists() and not google_auth.configured() and not google_auth.token_record():
+            # Never set up, as opposed to set up and silent. Nothing is missing:
+            # the tracker simply holds what was logged by hand.
+            return {"state": "off", "last_successful_sync": None, "last_error": None}
         return {"state": "unknown", "last_successful_sync": None,
                 "last_error": None, "status_error": str(exc)}
     synced = _utc(status.get("last_sync"))
@@ -68,7 +74,12 @@ def build_snapshot(now: datetime | None = None) -> dict:
     out: dict = {"generated_at": now.isoformat(), "warnings": []}
     out["freshness"] = _sync_freshness(now)
     state = out["freshness"]["state"]
-    if state != "fresh":
+    if state == "off":
+        out["warnings"].append(
+            "Gmail sync is not set up, so the tracker holds only what was logged by hand. "
+            "An application that was never logged will not appear here."
+        )
+    elif state != "fresh":
         description = {
             "error": "Gmail sync has failed.",
             "stale": "Gmail data is out of date.",

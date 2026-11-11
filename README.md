@@ -1,5 +1,8 @@
 # Job Bot
 
+[![CI](https://github.com/johnpluto2k/JobBot/actions/workflows/ci.yml/badge.svg)](https://github.com/johnpluto2k/JobBot/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A local-first, AI-assisted operating system for a job search. You do the
 judgment calls (which jobs, which people, what to send); Job Bot does the
 bookkeeping and the drafting around them:
@@ -18,9 +21,34 @@ are the ones you configure: the Anthropic API (writing and coaching) and Google
 (read-only Gmail). Nothing in this repo can send an email, send a LinkedIn
 message, or submit an application.
 
-> **New here?** Open Claude Code in this folder and paste
-> [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md). It walks you through the whole
-> setup. Prefer to do it by hand? See [Set it up](#set-it-up).
+![The Overview page on the demo data: funnel, response rate, field mix and profile](docs/img/overview.png)
+
+## Try it in two minutes
+
+No API key, no Google account, none of your own data. You need Python 3.12+ and
+Node 20+.
+
+```bash
+git clone https://github.com/johnpluto2k/JobBot.git && cd JobBot
+python -m venv .venv
+.venv\Scripts\activate              # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+python -m job_bot demo
+```
+
+That builds the dashboard, fills `demo_data/` with the search of an invented
+candidate (ten companies, an interview next week, an offer on the table, one
+overdue follow-up), and opens <http://localhost:8000>. The demo data goes in
+through the same intake, email classifier and funnel as real use, so what you
+click through is the real thing. Your own `data/` folder is never read or
+written.
+
+Paste [`examples/sample_jd.txt`](examples/sample_jd.txt) into **Resume Studio**
+to see a posting scored and a résumé tailored against the demo profile.
+
+When you want it on your own search, go to [Set it up](#set-it-up). With Claude
+Code, pasting [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) does the setup
+with you.
 
 ---
 
@@ -210,31 +238,34 @@ The repo ships with no personal data. Your profile, database, documents,
 coaching files, tokens and `.env` are gitignored; what's checked in is generic
 code plus templates.
 
-**Prerequisites:** Python 3.12+ (developed on 3.14), Node 20+, git. Optional:
-[Claude Code](https://claude.com/claude-code) with the
-[Claude in Chrome](https://claude.com/chrome) extension, an Anthropic API key
-(extraction, tailoring, dashboard coach) and a Google Cloud OAuth client
-(sign-in and Gmail sync). Without the optional pieces, the pipeline still works
-with less automation.
+**Prerequisites:** Python 3.12+ (developed on 3.14), Node 20+, git. Everything
+else is optional and adds automation:
 
-**Guided (recommended):** open Claude Code at the repo root and paste
+| Add this | And you get |
+| --- | --- |
+| nothing | the dashboard in **local mode** (no sign-in), manual application logging, the tracker and funnel, the posting watcher, heuristic profile extraction, template cover letters |
+| an Anthropic API key | LLM profile extraction, JD-aware bullet rewrites, written cover letters, the dashboard Coach tab, mock interviews |
+| a Google Cloud OAuth client | Sign in with Google, and the tracker filling itself from Gmail (read-only) |
+| [Claude Code](https://claude.com/claude-code) + [Claude in Chrome](https://claude.com/chrome) | the coach with memory, guided setup, reading job boards and Overleaf |
+
+**Guided:** open Claude Code at the repo root and paste
 [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md). It checks your toolchain,
 installs dependencies, walks you through `.env` and Google OAuth, builds your
-profile, creates your private coaching files, connects Claude in Chrome to
-Overleaf, starts the dashboard, and runs a first coaching session.
+profile, creates your private coaching files, starts the dashboard, and runs a
+first coaching session.
 
 **By hand** ([`docs/SETUP.md`](docs/SETUP.md) has the details):
 
 ```bash
 python -m venv .venv && .venv\Scripts\activate        # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env                                   # add ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID/SECRET
+pip install -r requirements.txt                        # extras: requirements-extras.txt
+cp .env.example .env                                   # optional: ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID/SECRET
 mkdir documents                                        # drop résumés, cover letters, transcripts here
 python -m job_bot.build_profile                        # → data/master_profile.json
 cp templates/COACH.template.md COACH.md                # fill in; stays local
 cp templates/COACH_STATE.template.md COACH_STATE.md
-cd web && npm install && npm run build && cd ..        # first time only
-uvicorn job_bot.api:app --port 8000                    # → http://localhost:8000
+python -m job_bot doctor                               # what is set up, what is missing
+python -m job_bot serve                                # builds the UI once → http://localhost:8000
 ```
 
 Then read [`docs/PERSONALIZATION.md`](docs/PERSONALIZATION.md): the few places
@@ -245,7 +276,7 @@ order to adjust them for yours.
 
 ## Day to day
 
-**Start it.** On Windows with Orca, `start-job-bot.cmd` brings everything up:
+**Start it.** `python -m job_bot serve` on any platform. On Windows with Orca, `start-job-bot.cmd` brings everything up:
 it fast-forwards to the newest `main` (never backward, never over uncommitted
 changes), rebuilds the UI only when the commit changed, runs the server in a
 **Job Bot Server** tab, opens a **Career Coach** tab, and opens the browser once
@@ -261,9 +292,10 @@ the server answers. Running it twice reattaches. Without Orca, run
 4. Tailor and submit an application or two, logging each.
 5. Send the outreach drafts you approve.
 
-**The dashboard** (one FastAPI process on port 8000 serving the React app and
-the JSON API, behind Sign in with Google, with a Gmail sync chip in the header
-that refreshes the data when a sync lands). 13 pages:
+**The dashboard** is one FastAPI process on port 8000 serving the React app and
+the JSON API. With a Google client configured it sits behind Sign in with
+Google and shows a Gmail sync chip in the header that refreshes the data when a
+sync lands; without one it opens in local mode, on this machine only. 13 pages:
 
 - **Overview**: Overview (KPIs, funnel, field mix), **Coach**
 - **Pipeline**: **Applications** (per-position tracker), Pipeline (scored
@@ -276,6 +308,9 @@ that refreshes the data when a sync lands). 13 pages:
 **CLI cheat sheet** (every module has `--help`):
 
 ```bash
+python -m job_bot serve                                         # the dashboard, on your data
+python -m job_bot demo                                          # the dashboard, on fictional data
+python -m job_bot doctor                                        # what is set up, what is missing
 python -m job_bot.build_profile                                 # profile
 python -m job_bot.watch --dry-run                               # what the watcher would find
 python -m job_bot.score_job --file jd.txt --url <posting url>   # ATS score + gaps
@@ -353,12 +388,13 @@ does neither and is what the coach uses.
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Everything is optional.
+Copy `.env.example` to `.env`. Everything is optional; with an empty `.env`
+the app runs in local mode and the only outbound calls are the watcher's.
 
 | Variable | Purpose |
 | --- | --- |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_MODEL_FAST` | Extraction, tailoring, cover letters, the dashboard coach. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Sign in with Google and read-only Gmail sync. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Sign in with Google and read-only Gmail sync. Leave empty for local mode: no sign-in, loopback requests only, Gmail off. |
 | `GMAIL_SYNC_DAYS`, `GMAIL_SYNC_MAX_THREADS`, `GMAIL_SYNC_QUERY` | Sync window (default 7 days), threads per pass (default 100), Gmail query. |
 | `JOB_BOT_TRACKER_SINCE` | Start of the current search season (`YYYY-MM-DD`). Older applications stay out of the tracker and funnel. Empty = all history. |
 | `JOB_BOT_HOME_MARKERS` | City/state words that count as "home" for the watcher's location filter. Defaults to the DC-Maryland-Virginia area; remote postings always pass. |
@@ -371,15 +407,17 @@ Copy `.env.example` to `.env`. Everything is optional.
 ## Tests
 
 ```bash
-python -m pytest            # 121 tests, all offline
+python -m pytest            # 144 tests, all offline, a few seconds
+cd web && npm run lint && npm run build
 ```
 
-They cover the funnel and per-position reconciliation, intake, companies, email
-classification (including real misreads such as an assessment filed as a
-rejection), the Gmail thread handling, the watcher's filters, tailoring across
-all three renderers, and the coach snapshot's read-only guarantees.
-`test_rendercv_pdf_one_page_and_parseable` currently fails: RenderCV renders the
-fixture profile at two pages (see [What's next](#whats-next)).
+CI runs both on every push and pull request. The tests cover the funnel and
+per-position reconciliation, intake, companies, email classification (including
+real misreads such as an assessment filed as a rejection), Gmail thread
+handling, the watcher's filters, tailoring across all three renderers, the
+coach snapshot's read-only guarantees, local mode's loopback checks, and the
+demo. None of them needs a key, a network connection, or your data: profiles
+come from `job_bot.demo.PROFILE`, and every database is a temporary file.
 
 ---
 
@@ -397,6 +435,8 @@ fixture profile at two pages (see [What's next](#whats-next)).
 | [`docs/prompts/`](docs/prompts/README.md), [`docs/archive/`](docs/archive/) | Past prompts and hand-off documents, kept for the record. |
 | [`web/README.md`](web/README.md) | The React dashboard: pages, endpoints, dev server. |
 | [`skills/linkedin-networking/`](skills/linkedin-networking/SKILL.md) | The LinkedIn outreach skill (Codex). |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md) | How to contribute, how the app protects your data, what leaves your machine. |
+| [`examples/sample_jd.txt`](examples/sample_jd.txt) | A fictional posting to score and tailor against the demo profile. |
 | `CLAUDE.md`, `AGENTS.md` | Auto-loaded context for Claude Code and Codex: engineering vs coaching mode, and the known traps. |
 | `templates/` | Starting points for your private `COACH.md` and `COACH_STATE.md`. |
 
@@ -414,8 +454,11 @@ fixture profile at two pages (see [What's next](#whats-next)).
   isn't dropped as too senior.
 - **`qualifications.py` is built but unwired**: decide whether it belongs in
   the apply gate or the ATS engine.
-- **RenderCV renders the fixture at two pages**; the one-page test fails until
-  the theme spacing or fixture changes.
+- **RenderCV has no one-page fit.** The demo profile renders on one page, but a
+  long profile can spill to two; the renderer should trim the lowest-ranked
+  bullets until it fits.
+- **No packaged release.** The UI is built from source on first run, which is
+  why Node is a prerequisite.
 - **Outreach isn't in the tracker yet.** The LinkedIn skill keeps its records
   in private task files rather than the `outreach` table.
 - **Dashboard coach memory.** Its chat history isn't saved and it can't write
@@ -423,3 +466,11 @@ fixture profile at two pages (see [What's next](#whats-next)).
 - **Field breadth.** The skills ontology, search tracks and company intel lean
   toward accounting, audit and finance; `docs/PERSONALIZATION.md` lists the
   files.
+
+---
+
+## Contributing and license
+
+Bug reports, fixes and support for fields other than accounting and audit are
+welcome: see [`CONTRIBUTING.md`](CONTRIBUTING.md). Released under the
+[MIT License](LICENSE).

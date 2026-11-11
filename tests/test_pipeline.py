@@ -8,8 +8,9 @@ Run either way:
     python -m tests.test_pipeline        # plain script, no pytest needed
     python -m pytest tests/              # if pytest is installed
 
-Skips (doesn't fail) when an optional piece is missing: the built profile
-(data/master_profile.json) or the rendercv package.
+The profile is the fictional one the demo ships (job_bot.demo.PROFILE), so the
+result is the same on every machine and never depends on anyone's real data.
+The RenderCV test skips when that optional package is not installed.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-FIXTURE_JD = PROJECT_ROOT / "data" / "sample_jd_deloitte_itrisk.txt"
+FIXTURE_JD = PROJECT_ROOT / "examples" / "sample_jd.txt"
 
 
 def _skip(msg: str):
@@ -33,20 +34,12 @@ def _skip(msg: str):
         pass
 
 
-def _load() -> tuple[dict, object] | None:
-    from job_bot import config
+def _load() -> tuple[dict, object]:
+    from job_bot.demo import PROFILE
     from job_bot.jd_parser import parse_jd
 
-    if not config.PROFILE_JSON.exists():
-        _skip("no data/master_profile.json — run job_bot.build_profile first")
-        return None
-    if not FIXTURE_JD.exists():
-        _skip(f"fixture JD missing: {FIXTURE_JD}")
-        return None
-    import json
-    profile = json.loads(config.PROFILE_JSON.read_text(encoding="utf-8"))
     job = parse_jd(FIXTURE_JD.read_text(encoding="utf-8"), use_llm=False)
-    return profile, job
+    return PROFILE, job
 
 
 def _pdf_pages(path: Path) -> int:
@@ -56,10 +49,7 @@ def _pdf_pages(path: Path) -> int:
 
 
 def test_tailor_and_docx():
-    loaded = _load()
-    if not loaded:
-        return
-    profile, job = loaded
+    profile, job = _load()
     from job_bot.render_docx import render_docx
     from job_bot.tailor import tailor_resume
 
@@ -79,10 +69,7 @@ def test_tailor_and_docx():
 
 
 def test_reportlab_pdf_one_page():
-    loaded = _load()
-    if not loaded:
-        return
-    profile, job = loaded
+    profile, job = _load()
     from job_bot.render_pdf import render_pdf
     from job_bot.tailor import tailor_resume
 
@@ -95,10 +82,7 @@ def test_reportlab_pdf_one_page():
 
 
 def test_rendercv_pdf_one_page_and_parseable():
-    loaded = _load()
-    if not loaded:
-        return
-    profile, job = loaded
+    profile, job = _load()
     try:
         import rendercv  # noqa: F401
     except ImportError:

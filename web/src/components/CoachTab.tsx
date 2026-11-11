@@ -65,9 +65,11 @@ function DataStatus({ snap }: { snap: CoachSnapshot }) {
   const reconnect = /invalid_grant|expired|revoked|not granted/i.test(snap.freshness?.last_error ?? '')
   return (
     <div className="space-y-2 rounded-lg border border-border bg-card p-3 text-sm">
-      <p className="text-muted-foreground">
-        Last successful Gmail sync: {lastSync ? new Date(lastSync).toLocaleString() : 'unknown'}
-      </p>
+      {snap.freshness?.state !== 'off' && (
+        <p className="text-muted-foreground">
+          Last successful Gmail sync: {lastSync ? new Date(lastSync).toLocaleString() : 'unknown'}
+        </p>
+      )}
       {(snap.warnings ?? []).map((warning) => (
         <p key={warning} role="status" className="flex items-start gap-2">
           <AlertCircle size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--status-amber)' }} />

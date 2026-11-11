@@ -32,9 +32,12 @@ table rather than destroying it.
 In single-server mode FastAPI serves this UI *and* the API on one port, fully
 replacing the Streamlit dashboard for daily use.
 
-**Auth:** the app mounts behind a `SignInScreen` — everything under `/api/*`
-(except `health` / `auth/status`) requires the Google session cookie minted by
-`/auth/callback` (see `job_bot/google_auth.py`). After sign-in the header shows
+**Auth:** with a Google OAuth client in `.env`, the app mounts behind a
+`SignInScreen` — everything under `/api/*` (except `health` / `auth/status`)
+requires the Google session cookie minted by `/auth/callback` (see
+`job_bot/google_auth.py`). With no client configured the API runs in local
+mode: `/api/auth/status` reports `local_mode: true`, loopback requests need no
+session, and the header shows a "Local mode" chip instead of the sync chip. After sign-in the header shows
 a `SyncIndicator` chip (last Gmail sync / new items / manual "sync now") and a
 sign-out button; Gmail auto-syncs every 15 minutes server-side.
 

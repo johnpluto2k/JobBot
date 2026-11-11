@@ -38,6 +38,7 @@ import { OffersTab } from '@/components/OffersTab'
 import { PipelineFunnel } from '@/components/PipelineFunnel'
 import { ProfilePanel } from '@/components/ProfilePanel'
 import { ResumeTab } from '@/components/ResumeTab'
+import { GettingStarted } from '@/components/GettingStarted'
 import { SignInScreen } from '@/components/SignInScreen'
 import { SyncIndicator } from '@/components/SyncIndicator'
 import { api, type AuthStatus } from '@/lib/api'
@@ -178,6 +179,14 @@ function Dashboard({ auth }: { auth: AuthStatus }) {
         if (!s) return null
         return (
           <div className="space-y-6">
+            {profile.data && (
+              <GettingStarted
+                hasProfile={profile.data.found}
+                hasApplications={s.total > 0}
+                gmailOff={!!auth.local_mode}
+                onLogApplication={() => go('applications')}
+              />
+            )}
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiCard
                 label="Applications"
@@ -327,16 +336,25 @@ function Dashboard({ auth }: { auth: AuthStatus }) {
         <div className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-10">
           <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
             <AppHeader profile={profile.data} />
-            <div className="flex items-center gap-2">
-              <SyncIndicator onSynced={bump} />
-              <button
-                onClick={signOut}
-                title={auth.email ? `Sign out (${auth.email})` : 'Sign out'}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            {auth.local_mode ? (
+              <span
+                title="No Google client in .env, so there is no sign-in and Gmail is not read. Log applications by hand, or add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (docs/SETUP.md, section 3) to have the tracker fill itself from your inbox."
+                className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground"
               >
-                <LogOut size={13} /> Sign out
-              </button>
-            </div>
+                Local mode · Gmail sync off
+              </span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <SyncIndicator onSynced={bump} />
+                <button
+                  onClick={signOut}
+                  title={auth.email ? `Sign out (${auth.email})` : 'Sign out'}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <LogOut size={13} /> Sign out
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mt-8">

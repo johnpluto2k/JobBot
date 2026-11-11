@@ -147,3 +147,28 @@ def test_cli_uses_dashboard_snapshot_builder(store, monkeypatch, capsys):
     monkeypatch.setattr("sys.argv", ["coach_snapshot.py"])
     coach_snapshot.main()
     assert json.loads(capsys.readouterr().out) == {"shared": "snapshot"}
+
+
+def test_gmail_never_set_up_is_reported_as_off_not_unknown(store, monkeypatch):
+    """Local mode: no client, no login, no sync status. That is a configuration,
+    not missing data, and the coach should say which."""
+    from job_bot import google_auth
+
+    (store / "gmail_sync_status.json").unlink()
+    monkeypatch.setattr(google_auth, "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(google_auth, "GOOGLE_CLIENT_SECRET", "")
+    monkeypatch.setattr(google_auth, "TOKEN_PATH", store / "google_token.json")
+    snap = coach.build_snapshot()
+    assert snap["freshness"]["state"] == "off"
+    assert any("not set up" in w for w in snap["warnings"])
+    assert not any("freshness is unknown" in w for w in snap["warnings"])
+
+
+def test_missing_sync_status_with_google_configured_stays_unknown(store, monkeypatch):
+    from job_bot import google_auth
+
+    (store / "gmail_sync_status.json").unlink()
+    monkeypatch.setattr(google_auth, "GOOGLE_CLIENT_ID", "id")
+    monkeypatch.setattr(google_auth, "GOOGLE_CLIENT_SECRET", "secret")
+    monkeypatch.setattr(google_auth, "TOKEN_PATH", store / "google_token.json")
+    assert coach.build_snapshot()["freshness"]["state"] == "unknown"

@@ -423,7 +423,7 @@ export interface CoachSnapshot {
   generated_at?: string
   warnings?: string[]
   freshness?: {
-    state: 'fresh' | 'stale' | 'error' | 'unknown'
+    state: 'fresh' | 'stale' | 'error' | 'unknown' | 'off'
     last_successful_sync: string | null
     last_error: string | null
     latest_email?: string | null
@@ -480,6 +480,9 @@ export interface AuthStatus {
   logged_in: boolean
   email: string | null
   configured: boolean
+  /** No Google client in .env: the dashboard is open on this machine without
+   *  sign-in, and Gmail sync is off. */
+  local_mode?: boolean
 }
 export interface SyncResult {
   scanned: number
@@ -500,9 +503,22 @@ export interface SyncStatus {
   last_error: string | null
 }
 
+/** The server explains most failures in a JSON `detail` field ("Gmail sync is
+ *  not set up…"). Show that, not just "409 Conflict". */
+async function failure(res: Response, path: string): Promise<Error> {
+  let detail = ''
+  try {
+    const body = await res.json()
+    if (typeof body?.detail === 'string') detail = body.detail
+  } catch {
+    // not JSON; fall through to the status line
+  }
+  return new Error(detail || `${path} → ${res.status} ${res.statusText}`)
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} → ${res.status} ${res.statusText}`)
+  if (!res.ok) throw await failure(res, path)
   return res.json() as Promise<T>
 }
 
@@ -512,7 +528,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`${path} → ${res.status} ${res.statusText}`)
+  if (!res.ok) throw await failure(res, path)
   return res.json() as Promise<T>
 }
 
@@ -522,7 +538,7 @@ async function send<T>(method: string, path: string, body: unknown): Promise<T> 
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`${path} → ${res.status} ${res.statusText}`)
+  if (!res.ok) throw await failure(res, path)
   return res.json() as Promise<T>
 }
 

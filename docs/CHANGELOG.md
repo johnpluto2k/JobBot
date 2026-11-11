@@ -3,6 +3,35 @@
 Dated history of the major passes. Newest first. Details for older entries
 live in `docs/archive/` and the git log.
 
+## 2026-11-10 — Usable by someone who isn't the author
+
+- **Demo.** `python -m job_bot demo` runs the dashboard on a fictional search
+  in `demo_data/`, seeded through the real intake, classifier and funnel. No
+  keys, no Google account, and `data/` is never touched.
+- **Local mode.** Without a Google OAuth client the dashboard used to stop at
+  a red "credentials missing" screen. It now opens without sign-in, for
+  loopback clients with a loopback `Host` header only. Installs that have a
+  client behave exactly as before.
+- **One front door.** `python -m job_bot serve | demo | doctor` (also
+  installed as `job-bot`). `serve` builds the UI when `web/dist` is missing;
+  `doctor` lists what is set up and what is missing.
+- **Packaging.** `pyproject.toml` holds the dependencies. The core install
+  dropped chromadb, Streamlit, pandas, Playwright, JobSpy and RenderCV, which
+  were always imported lazily; they are extras now
+  (`requirements-extras.txt`). Verified in a clean Python 3.12 environment.
+- **Tests no longer read the owner's profile.** The renderer tests used
+  `data/master_profile.json`, so they skipped everywhere else and the RenderCV
+  one-page test failed on the owner's machine. They use `demo.PROFILE` and
+  `examples/sample_jd.txt` now. 144 tests.
+- **An empty install explains itself.** The Overview shows a getting-started
+  checklist until there is a profile and one application, and the coach
+  snapshot reports Gmail as `off` (never set up) rather than `unknown`.
+- **Errors say why.** The UI showed "/api/sync-now → 409 Conflict" and dropped
+  the server's explanation; it now shows the `detail` text.
+- **Project files.** MIT license, `CONTRIBUTING.md`, `SECURITY.md`, issue and
+  pull-request templates, and a GitHub Actions workflow (pytest on 3.12 and
+  3.13 on Linux, 3.13 on Windows; dashboard lint and build).
+
 ## 2026-09-30 — Per-position tracker, Gmail receipts, LinkedIn skill
 
 - **The tracker lists positions, not just companies.** Each company row holds

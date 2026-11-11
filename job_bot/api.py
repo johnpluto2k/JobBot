@@ -90,15 +90,43 @@ app.add_middleware(
 # stores the refresh token (for Gmail sync) and mints the session cookie the
 # React app rides on. Everything under /api/* except the probes below requires
 # that cookie.
+#
+# Local mode: with no Google client in .env there is nothing to sign in with,
+# so the dashboard opens without a session - but only for a browser on this
+# machine talking to this machine. Gmail sync stays off until a client is added.
 
 _OPEN_API_PATHS = {"/api/health", "/api/auth/status"}
+_LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "localhost"}
+_LOOPBACK_HOSTS = {"127.0.0.1", "[::1]", "localhost"}
+
+
+def _local_mode(request: Request) -> bool:
+    """True when no Google client is configured and the request is loopback.
+
+    Both ends are checked. The client address keeps another machine out if the
+    server is ever bound to 0.0.0.0; the Host header keeps out a web page that
+    points its own domain at 127.0.0.1 (DNS rebinding), which would otherwise
+    arrive from a loopback client.
+    """
+    if google_auth.configured():
+        return False
+    client = request.client.host if request.client else ""
+    host = (request.headers.get("host") or "").strip().lower()
+    # Drop the port: "[::1]:8000" -> "[::1]", "localhost:8000" -> "localhost".
+    host = host[: host.find("]") + 1] if host.startswith("[") else host.split(":", 1)[0]
+    return client in _LOOPBACK_CLIENTS and host in _LOOPBACK_HOSTS
+
+
+def _authenticated(request: Request) -> bool:
+    return _local_mode(request) or google_auth.session_valid(
+        request.cookies.get(google_auth.SESSION_COOKIE))
 
 
 @app.middleware("http")
 async def _require_session(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/") and path not in _OPEN_API_PATHS:
-        if not google_auth.session_valid(request.cookies.get(google_auth.SESSION_COOKIE)):
+        if not _authenticated(request):
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     try:
         return await call_next(request)
@@ -113,8 +141,11 @@ def auth_login(next: str = "/"):
     """Kick off the Google OAuth consent flow."""
     if not google_auth.configured():
         return JSONResponse(
-            {"detail": "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET missing from .env"},
-            status_code=500,
+            {"detail": "Google sign-in is not set up. Add GOOGLE_CLIENT_ID and "
+                       "GOOGLE_CLIENT_SECRET to .env (docs/SETUP.md, section 3) and "
+                       "restart. The dashboard works without it; only Gmail sync "
+                       "needs it."},
+            status_code=503,
         )
     return RedirectResponse(google_auth.build_auth_url(next_url=next))
 
@@ -150,12 +181,14 @@ def auth_callback(code: str | None = None, state: str | None = None,
 @app.get("/api/auth/status")
 def auth_status(request: Request) -> dict:
     """Open probe the React app uses to decide login screen vs dashboard."""
-    logged_in = google_auth.session_valid(
+    local = _local_mode(request)
+    signed_in = google_auth.session_valid(
         request.cookies.get(google_auth.SESSION_COOKIE))
     return {
-        "logged_in": logged_in,
-        "email": google_auth.google_email() if logged_in else None,
+        "logged_in": local or signed_in,
+        "email": google_auth.google_email() if signed_in else None,
         "configured": google_auth.configured(),
+        "local_mode": local,
     }
 
 
@@ -170,6 +203,13 @@ def auth_logout():
 
 
 # --- Gmail sync ----------------------------------------------------------------
+
+def _gmail_off_reason() -> str:
+    if google_auth.configured():
+        return "Gmail not connected — sign in first"
+    return ("Gmail sync is not set up. Add a Google OAuth client to .env "
+            "(docs/SETUP.md, section 3), or keep logging applications by hand.")
+
 
 @app.get("/api/sync-status")
 def sync_status() -> dict:
@@ -186,8 +226,7 @@ def sync_status() -> dict:
 def sync_now() -> dict:
     """Run a Gmail sync immediately (same code path as the 15-minute job)."""
     if not google_auth.token_record():
-        return JSONResponse({"detail": "Gmail not connected — sign in first"},
-                            status_code=409)
+        return JSONResponse({"detail": _gmail_off_reason()}, status_code=409)
     status = gmail_client.run_sync()
     status["running"] = False
     status["gmail_connected"] = True
@@ -199,8 +238,7 @@ def resync_gmail(days: int = 60) -> dict:
     """Re-read the last `days` of Gmail and rebuild those tracker rows with the
     current classifier (fixes history a normal sync would skip as already seen)."""
     if not google_auth.token_record():
-        return JSONResponse({"detail": "Gmail not connected — sign in first"},
-                            status_code=409)
+        return JSONResponse({"detail": _gmail_off_reason()}, status_code=409)
     days = max(1, min(days, 365))
     try:
         r = gmail_client.resync(days=days)

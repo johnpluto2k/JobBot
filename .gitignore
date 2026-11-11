@@ -7,6 +7,13 @@ venv/
 # Generated artifacts
 data/
 !data/.gitkeep
+# Fictional data written by `python -m job_bot demo`
+demo_data/
+# Packaging
+*.egg-info/
+/build/
+/dist/
+.pytest_cache/
 
 # Personal source documents (resumes, transcripts, cover letters, avatar)
 documents/

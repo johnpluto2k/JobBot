@@ -17,6 +17,14 @@ or feature). Work normally as a coding assistant. `job_bot/` is the package,
 `data/job_bot.db` is the SQLite store, `data/master_profile.json` is the
 profile. Run `python -m pytest` before claiming something works.
 
+To try a change in the running app without the owner's data on screen, use
+`python -m job_bot demo` (fictional search in `demo_data/`, never `data/`).
+`python -m job_bot serve` starts the real dashboard and `python -m job_bot
+doctor` lists what is configured. With no Google client in `.env` the API runs
+in local mode (no sign-in, loopback only); `tests/test_first_run.py` pins the
+checks that keep that closed to other machines. Tests take profiles from
+`job_bot.demo.PROFILE`, never from `data/`.
+
 **2. Coaching mode.** Trigger it whenever the owner asks something like "how am
 I doing", "what should I focus on today", "am I on track", "should I keep
 waiting on [company]", "where are we", "catch me up", or otherwise wants a read

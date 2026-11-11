@@ -4,6 +4,9 @@ This is the manual walkthrough. If you have Claude Code, the faster route is to
 open it at the repo root and paste [`SETUP_PROMPT.md`](SETUP_PROMPT.md), which
 performs these steps interactively and verifies each one.
 
+To look around first, `python -m job_bot demo` runs the dashboard on fictional
+data with no keys and none of the steps below.
+
 Nothing personal ships with the repo. Everything you create below
 (`.env`, `documents/`, `data/`, `COACH.md`, `COACH_STATE.md`) is gitignored, so
 you can keep your fork public without leaking anything.
@@ -24,19 +27,31 @@ you can keep your fork public without leaking anything.
 git clone <your fork> "Job Bot" && cd "Job Bot"
 python -m venv .venv
 .venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt   # core: dashboard, tracker, watcher, tailoring, coach, tests
 ```
 
-Python 3.14 notes: `python-jobspy` (the Find Jobs scraper) pins an old numpy
-with no 3.14 wheel. Install it without deps if you want Find Jobs:
+The core install is an editable install of this folder (`pip install -e .`),
+so `git pull` is all an update needs. Optional features are separate, and each
+is imported only when used:
+
+| Feature | Install |
+| --- | --- |
+| RenderCV / Typst résumé renderer | `pip install -e ".[rendercv]"` |
+| Browser autofill, posting-liveness checks | `pip install -e ".[browser]"`, then `python -m playwright install chromium` |
+| Find Jobs multi-board search | `pip install -e ".[search]"` |
+| Legacy Streamlit dashboard, vector store | `pip install -e ".[legacy]"` |
+| All of the above | `pip install -r requirements-extras.txt` |
+
+Python 3.14 note: `python-jobspy` (Find Jobs) pins an old numpy with no 3.14
+wheel, so the `search` extra skips it there. Install it without its
+dependencies instead:
 
 ```bash
 pip install --no-deps python-jobspy
 pip install tls_client markdownify beautifulsoup4 requests regex
 ```
 
-For the RenderCV/Typst résumé renderer: `pip install "rendercv[full]"`. For
-browser autofill and posting-liveness checks: `python -m playwright install chromium`.
+`python -m job_bot doctor` lists what is installed and configured at any point.
 
 ## 2. Environment
 
@@ -50,11 +65,15 @@ city and state words that count as "home" for you, for example
 `JOB_BOT_HOME_MARKERS=chicago,il,illinois,evanston,naperville`. Remote and
 nationwide postings always pass the filter.
 
-## 3. Google sign-in and Gmail sync
+## 3. Google sign-in and Gmail sync (optional)
 
-The dashboard is gated behind Google sign-in, and the tracker fills itself from
-recruiter email. Both use one OAuth client with read-only scope. The app never
-sends, labels, or deletes mail.
+Skip this section and the dashboard opens in **local mode**: no sign-in,
+requests accepted from this machine only, and you log applications by hand.
+Come back to it when you want the tracker to fill itself from recruiter email.
+
+With an OAuth client configured, the dashboard is gated behind Google sign-in
+and reads job-related Gmail every 15 minutes. Both use one client with
+read-only scope. The app never sends, labels, or deletes mail.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/) create a project
    and enable the **Gmail API**.
@@ -128,12 +147,16 @@ claude        # in the repo folder; ask "where are we?"
 ## 6. Dashboard
 
 ```bash
-cd web && npm install && npm run build && cd ..     # first time, and after UI changes
-uvicorn job_bot.api:app --port 8000                  # http://localhost:8000
+python -m job_bot serve          # builds the UI the first time, then http://localhost:8000
 ```
 
-Sign in with Google. The header chip shows the last Gmail sync; **sync now**
-runs one immediately. Use **Companies → Log a job** every time you apply.
+After a UI change, rebuild with `cd web && npm run build`. To run the pieces
+yourself: `uvicorn job_bot.api:app --port 8000`, and `npm run dev` in `web/`
+for the Vite dev server.
+
+If you set up Google, sign in; the header chip shows the last Gmail sync and
+**sync now** runs one immediately. In local mode the header says so instead.
+Either way, use **Applications → Log an application** every time you apply.
 
 On Windows with [Orca](https://orca.dev) installed, `start-job-bot.cmd` does all
 of this and opens the coach terminal alongside. Without Orca, run
@@ -178,7 +201,8 @@ token must be verified live and added to `job_bot/watch_registry.py`.
 ## 10. Check
 
 ```bash
-python -m pytest                 # 92 offline tests
+python -m job_bot doctor         # what is set up, what is missing
+python -m pytest                 # offline tests, a few seconds
 python coach_snapshot.py .       # JSON with a "freshness" block and your funnel
 python -m job_bot.watch --dry-run
 ```

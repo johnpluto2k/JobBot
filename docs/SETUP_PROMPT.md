@@ -26,22 +26,27 @@ Ground rules for this whole session:
 
 **Step 1 — Toolchain.** Check `python --version` (3.12+), `node --version`
 (20+), `git --version`, and that `claude` is on PATH. Create `.venv`, activate
-it, and `pip install -r requirements.txt`. On Python 3.14 install
-`python-jobspy` with `--no-deps` plus its runtime deps as `docs/SETUP.md`
-describes. Offer `pip install "rendercv[full]"` and
-`python -m playwright install chromium` as optional extras and let me decide.
+it, and `pip install -r requirements.txt` (the core install). Then describe
+the optional extras in `docs/SETUP.md` section 1 (RenderCV renderer, browser
+autofill, Find Jobs search) and let me decide which to install; on Python 3.14
+install `python-jobspy` with `--no-deps` as that section describes. Run
+`python -m job_bot doctor` and show me the result.
 
 **Step 2 — Environment.** Copy `.env.example` to `.env`. Ask me for my
 Anthropic API key (I'll paste it directly into `.env` myself if I prefer). Ask
 which city and state words count as "home" for me and set
 `JOB_BOT_HOME_MARKERS`. Leave the Google fields for step 3.
 
-**Step 3 — Google sign-in and Gmail.** Explain in five short steps how to
-create a Google Cloud project, enable the Gmail API, set up an External consent
-screen in testing mode with my address as a test user, and create a *Web
-application* OAuth client with `http://localhost:8000/auth/callback` as the
-redirect URI. Wait for me to paste the client id and secret into `.env`.
-Confirm the scopes in `job_bot/google_auth.py` are read-only.
+**Step 3 — Google sign-in and Gmail (optional).** First ask whether I want
+the tracker to read my Gmail. If not, skip this step: the dashboard runs in
+local mode without sign-in and I log applications by hand. If so, explain in
+five short steps how to create a Google Cloud project, enable the Gmail API,
+set up an External consent screen with my address as a test user and then
+**publish it** (in Testing status Google expires the login after 7 days and
+sync silently stops), and create a *Web application* OAuth client with
+`http://localhost:8000/auth/callback` as the redirect URI. Wait for me to paste
+the client id and secret into `.env`. Confirm the scopes in
+`job_bot/google_auth.py` are read-only.
 
 **Step 4 — Documents and profile.** Create `documents/`. Ask me to drop in my
 résumés, cover letters, transcripts, and project write-ups, then run
@@ -66,12 +71,14 @@ template's structure, keeping the balanced tone section as is. Put a first
 START HERE agenda with two or three items into `COACH_STATE.md`. Confirm both
 files are gitignored.
 
-**Step 6 — Dashboard.** Run `cd web && npm install && npm run build && cd ..`,
-then start `uvicorn job_bot.api:app --port 8000` in the background. Ask me to
-open `http://localhost:8000`, sign in with Google, and click **sync now** in
-the header. Then check `GET /api/health` and `GET /api/sync-status` and tell
-me whether the first sync succeeded. If it failed with `invalid_grant` or a
-consent error, explain the Reconnect Google link.
+**Step 6 — Dashboard.** Start `python -m job_bot serve --no-browser` in the
+background (it builds the UI the first time) and ask me to open
+`http://localhost:8000`. If I set up Google in step 3, have me sign in, tick
+every permission box including Gmail, and click **sync now** in the header;
+then check `GET /api/health` and `GET /api/sync-status` and tell me whether the
+first sync succeeded. If it failed with `invalid_grant` or a consent error,
+explain the Reconnect Google link. If I skipped step 3, confirm the header
+shows local mode.
 
 **Step 7 — Claude in Chrome.** Ask me to install the Claude in Chrome
 extension from <https://claude.com/chrome>, sign in, and grant it access to

@@ -1,8 +1,0 @@
-# Core install: dashboard, tracker, watcher, tailoring, coach, and the tests.
-# The dependency list itself lives in pyproject.toml.
-#
-#     pip install -r requirements.txt
-#
-# Optional features (RenderCV renderer, browser autofill, Find Jobs search,
-# legacy Streamlit dashboard) are in requirements-extras.txt.
--e .[dev]

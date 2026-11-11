@@ -1,27 +1,25 @@
 ---
 name: Bug report
-about: Something doesn't work the way the README says it should
+about: The coach or the checker didn't do what the README or SETUP says
 labels: bug
 ---
 
-**What you did**
+**What you asked or ran**
 
-<!-- The command you ran or the page and button you used. -->
+<!-- The message you gave the coach, or the command. -->
 
 **What you expected, and what happened instead**
 
-<!-- Paste the error text. Remove names, emails and company names you'd rather not share. -->
+<!-- Paste the coach's reply or the error text. Remove names, emails and company names you'd rather not share. -->
 
-**Does it happen on the demo data?**
+**Which part**
 
-<!-- `python -m job_bot demo` runs the app on fictional data. If the bug shows up there, say so: it is much easier to fix. -->
+<!-- setup / master résumé / tailoring / tracker sheet / check-in / checker script / other -->
 
 **Setup**
 
-<!-- Paste the output of: python -m job_bot doctor -->
-
-```
-```
-
-- OS:
-- Python version:
+- OS (Mac or Windows):
+- `claude --version`:
+- `python --version`:
+- Google Drive connector connected (`/mcp`): yes / no
+- Claude in Chrome connected (`/chrome`): yes / no

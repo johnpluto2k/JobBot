@@ -1,0 +1,83 @@
+%-------------------------
+% ONE-PAGE COVER LETTER
+% The header matches the resume so the two read as one package.
+%
+% HOW TO USE
+%   1. Copy this file, one copy per job. Sam Rivera is a made-up person;
+%      replace every sentence with your own. Every claim must also be true
+%      on your resume: same numbers, same dates, same job titles.
+%   2. Compile: paste into Overleaf, or run `pdflatex cover_letter.tex`.
+%   3. Check:   python tools/check_resume.py cover_letter.pdf --letter
+%
+% STRUCTURE (keep it; change the words)
+%   - Opener: the role, who you are, and one plain reason you want this job.
+%   - One first-person paragraph about the most relevant thing you have done.
+%   - Five bullets of about two lines each: evidence, not adjectives.
+%   - A coursework line, then a short close.
+%
+% THE RULES THE CHECKER ENFORCES
+%   - Exactly one page, with 0.9-1.3in of blank space at the bottom.
+%     Too long: cut a sentence. Too short: add a true detail.
+%   - Plain ASCII: write "resume" and "cafe" without accents.
+% Write the way you talk. If a sentence could appear in anyone's letter, cut it.
+%-------------------------
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage[english]{babel}
+\usepackage{enumitem}
+\input{glyphtounicode}
+\pdfgentounicode=1
+
+% Take the dollar sign and the bullet from the standard Computer Modern fonts.
+% Without these two lines some TeX installs draw them as blurry bitmaps that
+% do not copy out of the PDF as text.
+\DeclareTextCommand{\textdollar}{OT1}{{\upshape\char36}}
+\DeclareTextSymbolDefault{\textbullet}{OMS}
+
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\setlength{\parskip}{11pt}
+\urlstyle{same}
+\pagestyle{empty}
+
+\begin{document}
+\raggedright
+\setlength{\parskip}{11pt}
+
+\begin{center}
+    \textbf{\Huge \scshape Sam Rivera} \\ \vspace{1pt}
+    \small 555-0100 $|$ \href{mailto:sam.rivera@example.com}{\underline{sam.rivera@example.com}} $|$
+    \href{https://linkedin.com/in/samrivera-example}{\underline{linkedin.com/in/samrivera-example}} $|$ Chicago, IL
+\end{center}
+\vspace{2pt}
+
+October 5, 2026
+
+Dear Northwind Logistics Hiring Team,
+
+I am writing to apply for the Data Analyst position on the Network Planning team in Chicago. I am a senior at Lakeshore State University studying Information Systems, and I will graduate in May 2027. I spent last summer on this team as an intern, and the work I liked most was the part where a planner asked why a region kept missing its delivery windows and I got to go find out. I would like to keep doing that work full time.
+
+Most of what I know about freight data I learned during that internship. I pulled 14 months of delivery records in SQL and traced a large share of the late shipments to three regional warehouses that were short on staff during the evening sort. I also built the Tableau dashboard that now tracks on-time delivery rates for more than 40 carrier routes, which replaced a report someone had been assembling by hand every week. The planners used it in their Monday meeting, and I rebuilt two of the views after watching which numbers they actually stopped to talk about. That taught me more than the SQL did: a dashboard is only finished when the people it was built for have changed how they run their meeting.
+
+Outside the internship, these are the things I would bring to the role:
+\begin{itemize}[leftmargin=0.5in, labelsep=0.18in, itemsep=0pt, parsep=0pt, topsep=0pt, partopsep=0pt]
+  \item A Python script that reconciles carrier invoices against shipment records, which cut a monthly close task at Northwind from six hours to under one
+  \item A bus reliability project where I cleaned 1.2 million rows of public arrival data with pandas, loaded them into PostgreSQL, and ranked the ten least reliable routes
+  \item A demand forecast for a grocery delivery startup, built from two years of weekly order data, that placed 2nd out of 18 teams at the Midwest Analytics Case Competition
+  \item Two years on the university IT help desk, resolving 25 or more tickets a week and writing up 30 recurring fixes for the team knowledge base
+  \item A \$12,000 annual budget managed as treasurer of the Information Systems Student Association, with spending reported to the board every month
+\end{itemize}
+
+My coursework includes Database Systems, Business Statistics, Data Visualization, Operations Management, and Systems Analysis \& Design.
+
+One thing I have not done yet is forecast freight volume for a live network, where a wrong number means trucks sitting empty or freight left on the dock. The posting lists volume forecasting as part of the job, and learning it from the planners who own those numbers is a large part of why I want to come back.
+
+Thank you for your time and consideration. I would be glad to walk through any of this work in more detail.
+
+Sincerely,
+
+Sam Rivera
+
+\end{document}

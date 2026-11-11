@@ -1,476 +1,107 @@
 # Job Bot
 
-[![CI](https://github.com/johnpluto2k/JobBot/actions/workflows/ci.yml/badge.svg)](https://github.com/johnpluto2k/JobBot/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+A career coach that runs in [Claude Code](https://claude.com/claude-code). You
+give it everything you've ever written about yourself. It builds a master
+resume, cuts a tailored one-page resume and cover letter for each job you apply
+to, keeps your applications in a Google Sheet, and tells you honestly where
+your search stands.
 
-A local-first, AI-assisted operating system for a job search. You do the
-judgment calls (which jobs, which people, what to send); Job Bot does the
-bookkeeping and the drafting around them:
+## Get started
 
-- turns your résumés and transcripts into one structured **profile**,
-- **watches** company job boards for new openings,
-- scores a posting against you and **tailors** a résumé and cover letter,
-- **tracks** every application, position by position, from what you log plus
-  the receipts, assessments, interviews and rejections in your Gmail,
-- drafts **LinkedIn and email outreach** for you to send,
-- and gives you a **career coach** that reads the real numbers before it says
-  anything.
+1. **Download** this project (green **Code** button, **Download ZIP**) and unzip it.
+2. **Double-click** `Start Coach - Windows` or `Start Coach - Mac`.
+3. **Say** `set me up`.
 
-Everything runs on your machine in one SQLite database. The only outbound calls
-are the ones you configure: the Anthropic API (writing and coaching) and Google
-(read-only Gmail). Nothing in this repo can send an email, send a LinkedIn
-message, or submit an application.
+The full walkthrough, with what to do if something doesn't open, is in
+**[SETUP.md](SETUP.md)**. It takes about 20 minutes.
 
-![The Overview page on the demo data: funnel, response rate, field mix and profile](docs/img/overview.png)
+You need a paid Claude plan, a Google account, and Chrome.
 
-## Try it in two minutes
-
-No API key, no Google account, none of your own data. You need Python 3.12+ and
-Node 20+.
-
-```bash
-git clone https://github.com/johnpluto2k/JobBot.git && cd JobBot
-python -m venv .venv
-.venv\Scripts\activate              # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-python -m job_bot demo
-```
-
-That builds the dashboard, fills `demo_data/` with the search of an invented
-candidate (ten companies, an interview next week, an offer on the table, one
-overdue follow-up), and opens <http://localhost:8000>. The demo data goes in
-through the same intake, email classifier and funnel as real use, so what you
-click through is the real thing. Your own `data/` folder is never read or
-written.
-
-Paste [`examples/sample_jd.txt`](examples/sample_jd.txt) into **Resume Studio**
-to see a posting scored and a résumé tailored against the demo profile.
-
-When you want it on your own search, go to [Set it up](#set-it-up). With Claude
-Code, pasting [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) does the setup
-with you.
-
----
-
-## How it works
+## What it does
 
 ```
- 1 PROFILE      your documents ─────────────▶ data/master_profile.json
-                                                      │
- 2 FIND         watcher (every 6 h) ─┐                ▼
-                you browse boards ───┼────▶ a posting you want
-                Find Jobs page ──────┘                │
-                                                      ▼
- 3 TAILOR       ATS score · network-or-apply verdict · résumé + cover letter
-                                                      │
- 4 APPLY & LOG  you submit it, then log it  ─────────▶ jobs table (site='tracker')
-                                                      │
- 5 TRACK        Gmail sync (every 15 min) reads receipts, assessments,
-                interviews, rejections ─────────────▶ Applications page + funnel
-                                                      │
- 6 NETWORK      outreach drafts (LinkedIn skill, email drafts) — you send
-                                                      │
- 7 COACH        reads COACH.md + COACH_STATE.md + a read-only snapshot
-                → what matters today, and one next action
+ your documents ──▶ profile ──▶ master resume ──▶ tailored application ──▶ tracker sheet
+   documents/       resume/       Overleaf          applications/          Google Sheets
+                                                                                │
+                                              coach check-ins  ◀────────────────┘
 ```
 
-### 1. Build your profile
-
-Drop your résumés, cover letters and transcripts into `documents/` and run:
-
-```bash
-python -m job_bot.build_profile
-```
-
-It extracts a structured profile (with Claude if an API key is set, a
-heuristic parser otherwise) and writes `data/master_profile.json`. Every later
-step reads that file: your name, school, graduation date and skills come from
-it, never from the code.
-
-### 2. Find postings
-
-Three optional feeds:
-
-- **You browse** LinkedIn, Handshake, Indeed and company career sites. In
-  Claude Code, the Claude in Chrome extension can read those pages for you.
-- **The watcher** (`job_bot/watch.py`) polls the public job boards of tracked
-  companies every 6 hours (91 companies across Greenhouse, Ashby,
-  SmartRecruiters and Workday, curated in `job_bot/watch_registry.py`). It
-  inserts only postings it hasn't seen, filtered to your home region.
-- **Find Jobs** in the dashboard runs a live multi-board search by hiring cycle
-  and career track.
-
-Watcher results are leads, not applications: they never count in your funnel.
-
-### 3. Tailor
-
-Paste the posting into **Resume Studio** in the dashboard, or from the CLI:
-
-```bash
-python -m job_bot.decide   --file jd.txt     # cold-apply, or network first?
-python -m job_bot.generate --file jd.txt     # ATS score, tailored résumé, cover letter, checklist
-```
-
-Scoring detects the ATS platform, separates required from preferred keywords
-and ranks your gaps. Tailoring selects and reorders your strongest matching
-bullets; it never invents experience. Many people keep the master résumé in
-Overleaf and paste the tailored bullets in; see
-[`docs/SETUP.md`](docs/SETUP.md#overleaf).
-
-### 4. Apply, then log it
-
-You submit the application yourself. Then log it, so the tracker knows it is
-real:
-
-- **Applications page → Log an application** (or **Companies → Log a job**).
-  Company and role are required; the posting URL is optional, and you can
-  back-date the "applied on" date.
-- CLI: `python -m job_bot.intake "<url>" "<company>" "<title>" --portal linkedin`
-
-Logging the same URL (or the same company + role) again updates that entry
-instead of duplicating it. If you forget to log, the Gmail receipt usually
-catches it in step 5.
-
-### 5. Track: the Applications page
-
-Signed in with Google, the server reads job-related Gmail every 15 minutes
-(or on demand with **Check Gmail now**) and classifies each message: application
-receipt, assessment, interview invite, offer, rejection, recruiter reply, or
-noise. Then it reconciles everything into **one row per company, with each
-position you applied to listed underneath**:
-
-| Where a position comes from | Example |
-| --- | --- |
-| **Logged** by you | the entries from step 4 |
-| **Read from Gmail** | "Thank you for applying to … Technology Consultant" |
-| **Imported** | an older spreadsheet/ledger import |
-
-Each position moves on its own. An assessment keeps it in review, an interview
-invite moves it to interviewing, and a rejection that names a role closes
-**only that role**. A newer application at a company that rejected you before
-stays open. You can change any position's status by hand, turn a Gmail-only
-position into a logged one, or mark a company **Not an application** (a scam
-invite, a mailing list) to drop it from the numbers.
-
-The company-level status feeds the funnel the coach and the Overview page read:
-**offer · interviewing · in review · ghosted · rejected**, with response and
-interview rates. `applications.summary()` is the single source of truth for
-those numbers.
-
-A few details worth knowing:
-
-- **Season filter.** Set `JOB_BOT_TRACKER_SINCE=2026-07-01` and older history
-  stays out of the tracker and funnel; tick **Include older history** to see
-  it.
-- **Several receipts in one Gmail thread each count.** Applying to three roles
-  at one company in an evening is three positions, not one.
-- **Fixing past mail.** A normal sync skips threads it has already read. After
-  a classifier fix, rebuild recent history with
-  `python -m job_bot.gmail_client --resync 60` (or `POST /api/resync-gmail`).
-  It keeps your "handled" flags.
-
-### 6. Network
-
-Outreach is drafted, never sent:
-
-- **LinkedIn**: `skills/linkedin-networking/` is a Codex skill. You open a
-  person's profile, ask for a note, and get a short connection note grounded in
-  what the profile actually shows, with its character count. It also handles
-  replies and follow-ups, and keeps your private research under
-  `data/career_workspace/`. Install it by copying the folder to
-  `~/.codex/skills/linkedin-networking/`.
-- **Referral and intro drafts**: `python -m job_bot.network --company "<company>" --role "<role>"`
-  and the dashboard's Network page.
-- **Follow-ups and recruiter email**: the `outreach-drafter` agent drafts
-  follow-up, referral and networking messages and saves them as drafts in the
-  `outreach` table.
-
-Networking is never counted as an application.
-
-### 7. Coach
-
-The coach is why the numbers have to be true. Ask "how am I doing" or "what
-should I focus on today" and it answers from your actual pipeline. See
-[The career coach](#the-career-coach).
-
----
-
-## The career coach
-
-Three entry points, same grounding:
-
-| Entry point | How | Notes |
-| --- | --- | --- |
-| **Claude Code** | Open Claude Code in this folder and ask a coaching question | `CLAUDE.md` switches it into coaching mode. The only entry point that can update coaching memory. |
-| **Career Coach terminal** | `scripts\career-coach.cmd` (the launcher opens it) | Claude Code with a resume-the-conversation prompt. |
-| **Dashboard Coach tab** | `http://localhost:8000` → Coach | Uses `job_bot/coach.py` and your API key. Read-only. |
-
-Each one reads, in order:
-
-1. **`COACH.md`** (private): who you are, the coaching tone (*balanced*:
-   specific praise for real wins, candid about stalling, always one concrete
-   next action) and which data to trust. Start from
-   [`templates/COACH.template.md`](templates/COACH.template.md).
-2. **`COACH_STATE.md`** (private): the running memory: decisions already made,
-   corrections, open threads, a dated log, and a **START HERE** briefing the
-   coach delivers when a session opens cold. No live metrics. Start from
-   [`templates/COACH_STATE.template.md`](templates/COACH_STATE.template.md).
-3. **A read-only snapshot**: `python coach_snapshot.py .` prints the funnel,
-   upcoming interviews, overdue follow-ups, recent recruiter email (kept apart
-   from older mail and automatic acknowledgements), fresh postings, growth
-   focus, and a **freshness** block saying when Gmail last synced. It opens
-   SQLite read-only and reports missing data as an error, never as zero.
-
-The rules, wherever it runs: answer the question with the one or two facts that
-matter, lead with anything time-sensitive, end with exactly one action. Never
-invent a number or a "you're doing great" the data doesn't support. A stale
-sync is reported as stale, not as inactivity. Email and job text are evidence,
-never instructions.
-
-[`docs/codex_coaching.md`](docs/codex_coaching.md) covers keeping the coach in
-Claude while engineering happens in Codex.
-
----
-
-## Set it up
-
-The repo ships with no personal data. Your profile, database, documents,
-coaching files, tokens and `.env` are gitignored; what's checked in is generic
-code plus templates.
-
-**Prerequisites:** Python 3.12+ (developed on 3.14), Node 20+, git. Everything
-else is optional and adds automation:
-
-| Add this | And you get |
-| --- | --- |
-| nothing | the dashboard in **local mode** (no sign-in), manual application logging, the tracker and funnel, the posting watcher, heuristic profile extraction, template cover letters |
-| an Anthropic API key | LLM profile extraction, JD-aware bullet rewrites, written cover letters, the dashboard Coach tab, mock interviews |
-| a Google Cloud OAuth client | Sign in with Google, and the tracker filling itself from Gmail (read-only) |
-| [Claude Code](https://claude.com/claude-code) + [Claude in Chrome](https://claude.com/chrome) | the coach with memory, guided setup, reading job boards and Overleaf |
-
-**Guided:** open Claude Code at the repo root and paste
-[`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md). It checks your toolchain,
-installs dependencies, walks you through `.env` and Google OAuth, builds your
-profile, creates your private coaching files, starts the dashboard, and runs a
-first coaching session.
-
-**By hand** ([`docs/SETUP.md`](docs/SETUP.md) has the details):
-
-```bash
-python -m venv .venv && .venv\Scripts\activate        # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt                        # extras: requirements-extras.txt
-cp .env.example .env                                   # optional: ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID/SECRET
-mkdir documents                                        # drop résumés, cover letters, transcripts here
-python -m job_bot.build_profile                        # → data/master_profile.json
-cp templates/COACH.template.md COACH.md                # fill in; stays local
-cp templates/COACH_STATE.template.md COACH_STATE.md
-python -m job_bot doctor                               # what is set up, what is missing
-python -m job_bot serve                                # builds the UI once → http://localhost:8000
-```
-
-Then read [`docs/PERSONALIZATION.md`](docs/PERSONALIZATION.md): the few places
-still tuned to the original owner's field (accounting and IT audit) and the
-order to adjust them for yours.
-
----
-
-## Day to day
-
-**Start it.** `python -m job_bot serve` on any platform. On Windows with Orca, `start-job-bot.cmd` brings everything up:
-it fast-forwards to the newest `main` (never backward, never over uncommitted
-changes), rebuilds the UI only when the commit changed, runs the server in a
-**Job Bot Server** tab, opens a **Career Coach** tab, and opens the browser once
-the server answers. Running it twice reattaches. Without Orca, run
-`scripts\run-server.cmd` and `scripts\career-coach.cmd` in two terminals.
-
-**A typical day:**
-
-1. Ask the coach what matters today.
-2. Check the **Applications** page: anything new from Gmail, anything to
-   update by hand.
-3. Look at **Companies** for watcher hits and overdue check-ins.
-4. Tailor and submit an application or two, logging each.
-5. Send the outreach drafts you approve.
-
-**The dashboard** is one FastAPI process on port 8000 serving the React app and
-the JSON API. With a Google client configured it sits behind Sign in with
-Google and shows a Gmail sync chip in the header that refreshes the data when a
-sync lands; without one it opens in local mode, on this machine only. 13 pages:
-
-- **Overview**: Overview (KPIs, funnel, field mix), **Coach**
-- **Pipeline**: **Applications** (per-position tracker), Pipeline (scored
-  postings), **Companies** (Log a job, check-ins, watcher status), Find Jobs
-- **Build**: Resume Studio (JD → ATS and network verdict → tailored one-page
-  résumé; RenderCV editor under Advanced), LinkedIn (profile optimizer)
-- **Network & Growth**: Network map, Growth plan, Offers (cost-of-living
-  adjusted), Company Brief, Interview Lab
-
-**CLI cheat sheet** (every module has `--help`):
-
-```bash
-python -m job_bot serve                                         # the dashboard, on your data
-python -m job_bot demo                                          # the dashboard, on fictional data
-python -m job_bot doctor                                        # what is set up, what is missing
-python -m job_bot.build_profile                                 # profile
-python -m job_bot.watch --dry-run                               # what the watcher would find
-python -m job_bot.score_job --file jd.txt --url <posting url>   # ATS score + gaps
-python -m job_bot.decide --file jd.txt                          # cold-apply vs network-first
-python -m job_bot.generate --file jd.txt [--renderer rendercv]  # tailored package
-python -m job_bot.intake "<url>" "<company>" "<title>" --portal linkedin  # log an application
-python -m job_bot.gmail_client                                  # one Gmail sync now
-python -m job_bot.gmail_client --resync 60                      # rebuild the last 60 days of mail
-python -m job_bot.network --company "<company>" --role "<role>" # referral / intro drafts
-python -m job_bot.interview --mock --firm big4 --rounds 5       # mock interview (needs a key)
-python -m job_bot.pipeline --queue                              # what needs action today
-python -m job_bot.offers --compare                              # rank offers
-python coach_snapshot.py .                                      # the coach's snapshot
-```
-
-**Unattended daily run.** `run-job-bot-pipeline.cmd` starts Claude Code on
-`daily_pipeline_prompt.md`, which hands work to the subagents in
-`.claude/agents/` (job-scout, resume-tailor, recruiter-reviewer,
-outreach-drafter, inbox-triager, growth-planner). It finds and drafts only.
-
----
-
-## Architecture
-
-```
-┌──────────────┐  /api/*   ┌──────────────────┐  reuses  ┌────────────────────────────┐
-│  React (web/)│ ────────▶ │ FastAPI job_bot/ │ ───────▶ │ applications · inbox ·     │
-│  Vite + TS   │           │ api.py  :8000    │          │ ats_engine · tailor · …    │
-└──────────────┘           └────────┬─────────┘          └─────────────┬──────────────┘
-                                    │ APScheduler                       │
-                        Gmail sync (15 min) · watcher (6 h)        SQLite data/job_bot.db (WAL)
-                                                                   data/master_profile.json
-```
-
-| Area | Modules (under `job_bot/`) |
-| --- | --- |
-| Profile | `ingest`, `extract`, `models`, `build_profile`, `store`, `transcript`, `candidate` |
-| Scoring | `jd_parser`, `ats_platforms`, `ats_engine`, `similarity`, `skills_ontology`, `seniority`, `qualifications`, `legitimacy`, `routing` |
-| Tailoring | `tailor`, `cover_letter`, `cover_ab`, `render_docx`, `render_pdf`, `render_rendercv`, `writing_style`, `generate` |
-| Tracking | `db`, `applications` (the funnel), `intake`, `companies`, `inbox` (classifier), `gmail_sync`, `gmail_client`, `google_auth`, `rejections` |
-| Discovery | `watch`, `watch_registry`, `portals`, `newgrad`, `deprecated/jobsearch` (still used by Find Jobs) |
-| Networking | `connections`, `decision_engine`, `decide`, `networking`, `outreach`, `network`, `network_map`, `linkedin_optimizer` |
-| Interviews | `story_bank`, `questions`, `rubric`, `interview`, `recording`, `prep_plan`, `thankyou`, `company_research` |
-| Offers | `salary`, `offers`, `negotiation` |
-| Coach | `coach_context` (read-only snapshot), `coach` (dashboard chat) |
-| Surfaces | `api` (FastAPI), `dashboard` + `ui` (legacy Streamlit), `pipeline` (CLI), `notify` |
-
-**Data.** One SQLite file, `data/job_bot.db`, in WAL mode. The main tables are
-`jobs` (postings and logged positions; `url` is UNIQUE), `companies`,
-`tracked_emails` (each classified email, with the role it names and whether
-it is an application receipt), `interviews`, `rejections`, `offers`,
-`tracker_hidden`, `outreach`, `connections`, `notifications` and
-`generated_resumes`. `db.connect()` creates and migrates; `db.connect_readonly()`
-does neither and is what the coach uses.
-
-**Rules to keep when you change things:**
-
-- **Only real applications count.** The funnel reads `jobs` rows with
-  `site IN ('email','tracker','ledger')`. Intake writes `site='tracker'`; the
-  watcher and scrapers write the platform name, so a posting you never applied
-  to can't inflate your numbers. Don't widen that filter.
-- **Status updates are surgical.** An email moves jobs by explicit row id
-  through `applications.canon()`, narrowed to the role it names, capped at ten
-  rows per email.
-- **One `data/` per repo, not per worktree.** `config._primary_checkout()`
-  resolves `data/` to the primary checkout from any git worktree. If an edit
-  "didn't save", check which `data/` was written.
-- **The coach never writes the database.** Snapshot queries use `mode=ro` and
-  `PRAGMA query_only=ON`; coaching memory changes only when Claude Code edits
-  `COACH_STATE.md`.
-- **No send path exists.** The Google scope is `gmail.readonly`; drafts stay
-  drafts.
-
----
-
-## Configuration
-
-Copy `.env.example` to `.env`. Everything is optional; with an empty `.env`
-the app runs in local mode and the only outbound calls are the watcher's.
-
-| Variable | Purpose |
-| --- | --- |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_MODEL_FAST` | Extraction, tailoring, cover letters, the dashboard coach. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Sign in with Google and read-only Gmail sync. Leave empty for local mode: no sign-in, loopback requests only, Gmail off. |
-| `GMAIL_SYNC_DAYS`, `GMAIL_SYNC_MAX_THREADS`, `GMAIL_SYNC_QUERY` | Sync window (default 7 days), threads per pass (default 100), Gmail query. |
-| `JOB_BOT_TRACKER_SINCE` | Start of the current search season (`YYYY-MM-DD`). Older applications stay out of the tracker and funnel. Empty = all history. |
-| `JOB_BOT_HOME_MARKERS` | City/state words that count as "home" for the watcher's location filter. Defaults to the DC-Maryland-Virginia area; remote postings always pass. |
-| `JOB_BOT_CANDIDATE_NAME`, `JOB_BOT_CANDIDATE_BLURB` | Fallbacks before a profile exists. |
-| `JOB_BOT_WEBHOOK` | Slack-compatible webhook for watcher and deadline alerts. |
-| `JOB_BOT_DOCS_DIR`, `JOB_BOT_TRANSCRIPT_DIR`, `JOB_BOT_OUTPUT_DIR` | Where documents are read from and where `data/` lives. |
-
----
-
-## Tests
-
-```bash
-python -m pytest            # 144 tests, all offline, a few seconds
-cd web && npm run lint && npm run build
-```
-
-CI runs both on every push and pull request. The tests cover the funnel and
-per-position reconciliation, intake, companies, email classification (including
-real misreads such as an assessment filed as a rejection), Gmail thread
-handling, the watcher's filters, tailoring across all three renderers, the
-coach snapshot's read-only guarantees, local mode's loopback checks, and the
-demo. None of them needs a key, a network connection, or your data: profiles
-come from `job_bot.demo.PROFILE`, and every database is a temporary file.
-
----
-
-## Documentation map
-
-| File | What it is |
-| --- | --- |
-| [`docs/SETUP.md`](docs/SETUP.md) | Full manual setup: toolchain, `.env`, Google OAuth, profile, coaching files, Overleaf, Claude in Chrome, launcher. |
-| [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) | The paste-into-Claude-Code prompt that does that setup with you. |
-| [`docs/PERSONALIZATION.md`](docs/PERSONALIZATION.md) | What is yours (gitignored), what is generic, what is still tuned to the original owner's field. |
-| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Dated history of every major change since July 2026. |
-| [`docs/codex_coaching.md`](docs/codex_coaching.md) | Running the coach separately from an engineering session. |
-| [`docs/job_application_system_master_plan.md`](docs/job_application_system_master_plan.md) | The original architecture and build log (parts are historical). |
-| [`docs/resume_branding_playbook.md`](docs/resume_branding_playbook.md), [`docs/resume_track_contract.md`](docs/resume_track_contract.md) | Example résumé positioning and track contract; rewrite for your field. |
-| [`docs/prompts/`](docs/prompts/README.md), [`docs/archive/`](docs/archive/) | Past prompts and hand-off documents, kept for the record. |
-| [`web/README.md`](web/README.md) | The React dashboard: pages, endpoints, dev server. |
-| [`skills/linkedin-networking/`](skills/linkedin-networking/SKILL.md) | The LinkedIn outreach skill (Codex). |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md) | How to contribute, how the app protects your data, what leaves your machine. |
-| [`examples/sample_jd.txt`](examples/sample_jd.txt) | A fictional posting to score and tailor against the demo profile. |
-| `CLAUDE.md`, `AGENTS.md` | Auto-loaded context for Claude Code and Codex: engineering vs coaching mode, and the known traps. |
-| `templates/` | Starting points for your private `COACH.md` and `COACH_STATE.md`. |
-
----
-
-## What's next
-
-- **Find Jobs → tracker handoff is manual.** A "log this" button on each result
-  would close the loop.
-- **Watcher coverage.** 91 companies have a verified public feed; more can be
-  added by checking each company's real careers endpoint (never by guessing ATS
-  tokens). Deloitte, EY, KPMG and Protiviti have no public feed and stay on
-  manual check-ins.
-- **Per-company watcher filters**, so a "Staff Auditor" title at a small firm
-  isn't dropped as too senior.
-- **`qualifications.py` is built but unwired**: decide whether it belongs in
-  the apply gate or the ATS engine.
-- **RenderCV has no one-page fit.** The demo profile renders on one page, but a
-  long profile can spill to two; the renderer should trim the lowest-ranked
-  bullets until it fits.
-- **No packaged release.** The UI is built from source on first run, which is
-  why Node is a prerequisite.
-- **Outreach isn't in the tracker yet.** The LinkedIn skill keeps its records
-  in private task files rather than the `outreach` table.
-- **Dashboard coach memory.** Its chat history isn't saved and it can't write
-  `COACH_STATE.md`; a reviewed "save this decision" step is the intended fix.
-- **Field breadth.** The skills ontology, search tracks and company intel lean
-  toward accounting, audit and finance; `docs/PERSONALIZATION.md` lists the
-  files.
-
----
-
-## Contributing and license
-
-Bug reports, fixes and support for fields other than accounting and audit are
-welcome: see [`CONTRIBUTING.md`](CONTRIBUTING.md). Released under the
-[MIT License](LICENSE).
+1. **Intake.** Drop every resume, cover letter, transcript and project
+   write-up you have into `documents`. The coach reads all of it, writes a
+   factual profile, and asks about anything that doesn't add up.
+2. **Master resume.** A multi-page resume with everything you've ever done,
+   kept in your own Overleaf project.
+3. **Tailored applications.** Give it a job posting. It picks what fits,
+   builds a one-page resume and a cover letter, measures the result, and has a
+   second agent review it the way a recruiter would.
+4. **Tracking.** When you say you've applied, it adds a row to your Google
+   Sheet: company, role, date, status, location, pay, work mode, deadline.
+5. **Coaching.** Ask "where are we?" and it reads the sheet, then tells you
+   what is time-sensitive, one honest observation, and one thing to do next.
+
+## What's in the folder
+
+| You'll use | |
+|---|---|
+| `Start Coach - Windows` / `Start Coach - Mac` | Double-click to open your sheet and your coach |
+| `SETUP.md` | The setup walkthrough |
+| `documents/` | Where you put everything you already have |
+| `applications/` | Where the coach puts each application, one folder per job |
+| `resume/` | Your profile and master resume (created during setup) |
+| `coach/` | The coach's notes about you and your search (created during setup) |
+
+| You can ignore | |
+|---|---|
+| `CLAUDE.md`, `AGENTS.md` | The coach's instructions; Claude reads them automatically |
+| `rules/` | How resumes are written, how the coach talks, how the sheet is used |
+| `templates/` | The blank tracker, resume layouts and blank coach notes |
+| `tools/` | The script that measures your resume, and the launcher's code |
+| `examples/` | A finished resume and letter for a fictional student |
+
+Everything in `documents`, `applications`, `resume` and `coach` stays on your
+computer and is never uploaded with the project.
+
+## Why the resumes come out well
+
+Every tailored resume has to pass three measured checks
+([`rules/resume_rules.md`](rules/resume_rules.md)):
+
+- **Every bullet is one full line**, 92% to 99% of the page width.
+- **The same number of bullets per entry on every resume.**
+- **The page is filled to the bottom**, with about a quarter inch to spare.
+
+And one rule above all of them: **nothing is invented.** No number, tool,
+course or title that can't be traced to your documents or to something you
+said. Where you don't match a posting, the coach tells you instead of
+papering over it.
+
+See [`examples/`](examples/) for what comes out.
+
+## What it will not do
+
+- **Send or submit anything.** It drafts, and can fill in a form when you ask.
+  You press Send and Submit.
+- **Guess at your progress.** If it can't read your sheet, it says so.
+- **Upload your data.** Your tracker is a sheet in your own Google Drive, and
+  your files stay in folders Git ignores.
+
+## Changing how it behaves
+
+Everything the coach does is written in plain English in Markdown files. Tell
+the coach what you want different ("always keep my check-ins to three
+sentences", "use 4 bullets for my main job") and it records it in
+`coach/rules.md`, which overrides the defaults in `rules/`.
+
+## About
+
+This started as one student's job-search tool and was used for about fifty
+applications before being opened up. The rules in it are the ones that
+survived that search. An earlier version was a web dashboard with a database;
+it is kept at the
+[`v0.2-dashboard`](https://github.com/johnpluto2k/JobBot/tree/v0.2-dashboard)
+tag.
+
+Improvements are welcome, especially for fields other than business and
+technology: see [CONTRIBUTING](.github/CONTRIBUTING.md),
+[SECURITY](.github/SECURITY.md) and the [changelog](.github/CHANGELOG.md).
+MIT licensed; see [LICENSE](LICENSE).

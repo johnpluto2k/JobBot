@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Something Job Bot should do, or a field or job board it should support
+about: Something the coach should do, or a field it should handle better
 labels: enhancement
 ---
 
@@ -12,4 +12,4 @@ labels: enhancement
 
 **Field or region, if it matters**
 
-<!-- Job Bot grew up around accounting and audit roles near Washington, DC. Requests from other fields are especially useful. -->
+<!-- The rules and templates grew out of business and technology applications in the US. Requests from other fields and countries are especially useful. -->

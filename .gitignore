@@ -1,49 +1,48 @@
+# ---- Private: created on your machine by setup, never committed -------------
+# Everything you already have: résumés, transcripts, letters, exports.
+/documents/*
+!/documents/README.md
+# Your profile and master résumé.
+/resume/
+# One folder per application.
+/applications/*
+!/applications/README.md
+# Who you are, your decisions, and the coach's running memory.
+/coach/
+
+# ---- Private files from the earlier dashboard version -----------------------
+# Kept ignored so an older checkout's data can never be committed by accident.
+/data/
+/inputs/
+/outputs/
+demo_data/
+resume-studio/
+CoverLetter/
+Resumes/
+/COACH.md
+/COACH_STATE.md
 .env
+
+# ---- Build and tool leftovers ----------------------------------------------
 __pycache__/
 *.pyc
 .venv/
 venv/
-
-# Generated artifacts
-data/
-!data/.gitkeep
-# Fictional data written by `python -m job_bot demo`
-demo_data/
-# Packaging
-*.egg-info/
-/build/
-/dist/
 .pytest_cache/
-
-# Personal source documents (resumes, transcripts, cover letters, avatar)
-documents/
-
-# Raw source inputs — alumni sheet, job tracker (contains a password!), LinkedIn
-# export. Sensitive PII/credentials; never commit.
-inputs/
-
-# OS / Office cruft
-~$*
-.DS_Store
-.gstack/
-
-# Claude Code personal settings
-.claude/settings.json
-
-# Dev-server run artifacts
+*.egg-info/
+*.aux
 *.log
-*.pid
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# ---- OS and editor ----------------------------------------------------------
+.DS_Store
+Thumbs.db
+~$*
+*.lnk
+.claude/settings.json
+.claude/settings.local.json
 graphify-out/
-screenshots/
-
-# --- Personal source documents kept alongside the app (never committed) ------
-# Your own resumes / cover letters and the Resume Studio scratch folder.
-CoverLetter/
-Resumes/
-resume-studio/
-Resume_Tailoring_Framework.md
-
-# Private coaching files — local only, never committed (see CLAUDE.md).
-# COACH.md was purged from history 2026-08-25 before this repo went public.
-COACH.md
-COACH_STATE.md
+.gstack/

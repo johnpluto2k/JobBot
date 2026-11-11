@@ -1,0 +1,2 @@
+pdfminer.six>=20221105
+pytest>=7.0

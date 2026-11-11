@@ -1,0 +1,231 @@
+%-------------------------
+% ONE-PAGE TAILORED RESUME
+% Layout based on "Jake's Resume" by Jake Gutierrez (MIT license),
+% itself based on https://github.com/sb2nov/resume, packed tighter:
+% 0.4in side margins, explicit list spacing.
+%
+% HOW TO USE
+%   1. Copy this file, one copy per job. Sam Rivera is a made-up person;
+%      replace every entry with content cut from YOUR master resume
+%      (master_resume.tex). Nothing goes in that is not true.
+%   2. Compile: paste into Overleaf, or run `pdflatex resume.tex`.
+%   3. Check:   python tools/check_resume.py resume.pdf --tex resume.tex
+%   4. Edit until every line says PASS.
+%
+% THE RULES THE CHECKER ENFORCES
+%   - Exactly one page, with 0.20-0.35in of blank space at the bottom.
+%   - Every bullet is ONE line that ends 92-99% of the way to the right
+%     margin. Too short: add a true detail. Wraps: cut words.
+%   - Every bullet starts with a different action verb.
+%   - 3 bullets per job, 3 per project, 2 per leadership entry. Fill the
+%     page by adding or removing whole entries, not by stacking bullets.
+%   - Plain ASCII: write "resume" and "cafe" without accents, and use " -- "
+%     (a spaced en dash) in headings.
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.6in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-.65in}
+\addtolength{\textheight}{1.42in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+\titlespacing*{\section}{0pt}{5pt}{6pt}
+
+% Ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+% Take the dollar sign and the bullet from the standard Computer Modern fonts.
+% Without these two lines some TeX installs draw them as blurry bitmaps that
+% do not copy out of the PDF as text.
+\DeclareTextCommand{\textdollar}{OT1}{{\upshape\char36}}
+\DeclareTextSymbolDefault{\textbullet}{OMS}
+
+%-------------------------
+% Custom commands (explicit, tight spacing)
+\newcommand{\resumeItem}[1]{\item\small{#1}}
+
+\newcommand{\resumeSubheading}[4]{
+  \item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{2pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{2pt}
+}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}, itemsep=2pt, topsep=0pt, parsep=0pt, partopsep=0pt]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=0pt, topsep=0pt, parsep=0pt, partopsep=0pt]}
+\newcommand{\resumeItemListEnd}{\end{itemize}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+%-----------HEADING-----------
+\begin{center}
+    \textbf{\Huge \scshape Sam Rivera} \\ \vspace{1pt}
+    \small 555-0100 $|$ \href{mailto:sam.rivera@example.com}{\underline{sam.rivera@example.com}} $|$
+    \href{https://linkedin.com/in/samrivera-example}{\underline{linkedin.com/in/samrivera-example}} $|$ Chicago, IL
+\end{center}
+\vspace{-9pt}
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Lakeshore State University}{Expected May 2027}
+      {B.S. Information Systems, College of Business}{GPA: 3.6}
+  \resumeSubHeadingListEnd
+  \vspace{3pt}
+  \begin{itemize}[leftmargin=0.15in, label={}, topsep=0pt, partopsep=0pt, itemsep=0pt, parsep=0pt]
+    \small{\item{
+     \textbf{Relevant Coursework}{: Database Systems, Business Statistics, Data Visualization, Systems Analysis \& Design, Operations Management, Programming in Python, Managerial Accounting, Project Management}
+    }}
+  \end{itemize}
+  \vspace{-4pt}
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Data Analyst Intern}{Chicago, IL}
+      {Northwind Logistics -- Regional Freight Carrier}{June 2026 - August 2026}
+      \resumeItemListStart
+        \resumeItem{Analyzed 14 months of delivery records in SQL to trace late shipments to three under-staffed regional warehouses}
+        \resumeItem{Built a Tableau dashboard tracking on-time delivery rates for 40+ carrier routes, replacing a weekly manual report}
+        \resumeItem{Automated a carrier invoice reconciliation in Python, cutting the monthly close task from six hours to under one}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {IT Help Desk Technician}{Chicago, IL}
+      {Lakeshore State University}{September 2024 - Present}
+      \resumeItemListStart
+        \resumeItem{Resolved 25+ support tickets a week for students and faculty covering accounts, campus Wi-Fi, and lab software}
+        \resumeItem{Documented 30 recurring fixes in the team knowledge base, which new technicians now use during their training}
+        \resumeItem{Trained 6 newly hired technicians on the ticketing system, escalation policies, and remote troubleshooting steps}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Inventory Associate}{Evanston, IL}
+      {Pinecrest Outdoor Supply}{May 2025 - August 2025}
+      \resumeItemListStart
+        \resumeItem{Counted and logged inventory for 2,000+ items each week, flagging any stock discrepancies to the store manager}
+        \resumeItem{Reorganized the stockroom by sales velocity so that the 300 fastest-selling items now sit closest to the sales floor}
+        \resumeItem{Processed online pickup orders during peak weekend hours while keeping the average wait time under ten minutes}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+%-----------LEADERSHIP-----------
+\section{Leadership \& Involvement}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Information Systems Student Association}{Chicago, IL}
+      {Treasurer}{August 2025 - Present}
+      \resumeItemListStart
+        \resumeItem{Managed a \$12,000 annual budget across 15 events, reporting all spending to the executive board every month}
+        \resumeItem{Migrated the club's paper reimbursement forms to a shared spreadsheet tracker with live approval status columns}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Midwest Analytics Case Competition}{Chicago, IL}
+      {Finalist -- 4-Person Team}{March 2026}
+      \resumeItemListStart
+        \resumeItem{Forecast regional demand for a grocery delivery startup from two years of weekly order data in Excel and Python}
+        \resumeItem{Presented a three-city expansion recommendation to a panel of five industry judges, placing 2nd out of 18 teams}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {University Learning Center}{Chicago, IL}
+      {Peer Tutor -- Introduction to Databases}{January 2025 - May 2026}
+      \resumeItemListStart
+        \resumeItem{Tutored 20+ students a semester in introductory database design, SQL queries, and Excel spreadsheet modeling}
+        \resumeItem{Wrote 12 practice problem sets with fully worked solutions that the center now hands out to every new student}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+    \resumeSubHeadingListStart
+      \resumeProjectHeading
+          {\textbf{Transit Delay Explorer -- Bus Reliability Analysis} $|$ \emph{Python, pandas, PostgreSQL, Tableau}}{}
+          \resumeItemListStart
+            \resumeItem{Cleaned 1.2 million rows of public bus arrival data with pandas and loaded them into a local PostgreSQL database}
+            \resumeItem{Queried delay patterns by route, time of day, and weather to identify the ten least reliable routes in the system}
+            \resumeItem{Visualized the key findings in an interactive Tableau story, then presented it to a campus data journalism seminar}
+          \resumeItemListEnd
+      \resumeProjectHeading
+          {\textbf{Campus Marketplace -- Student Textbook Resale Web App} $|$ \emph{JavaScript, React, Node.js, SQLite}}{}
+          \resumeItemListStart
+            \resumeItem{Developed a web app where students list and search for used textbooks, with listings filtered by course number}
+            \resumeItem{Designed a relational schema of 6 tables covering users, listings, messages, reviews, and saved searches in SQLite}
+            \resumeItem{Launched the app to 150 students in one residence hall and collected their feedback through a short in-app form}
+          \resumeItemListEnd
+      \resumeProjectHeading
+          {\textbf{Pocket Ledger -- Personal Spending Tracker} $|$ \emph{Python, Streamlit, Excel}}{}
+          \resumeItemListStart
+            \resumeItem{Parsed two years of exported bank statements into a single clean ledger, removing duplicate and pending entries}
+            \resumeItem{Categorized 3,400 transactions with keyword rules, then reviewed the 9\% unmatched remainder by hand in Excel}
+            \resumeItem{Charted monthly spending by category in a Streamlit page that compares each month's total against a set budget}
+          \resumeItemListEnd
+    \resumeSubHeadingListEnd
+
+%-----------SKILLS-----------
+\section{Skills \& Certifications}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Data \& Analytics}{: SQL (PostgreSQL, SQLite), Excel (PivotTables, XLOOKUP), Tableau, Statistics, Forecasting} \\
+     \textbf{Programming}{: Python (pandas, Streamlit), JavaScript, React, Node.js, HTML \& CSS, Git, REST APIs} \\
+     \textbf{Business \& Tools}{: Requirements Gathering, Process Documentation, Budgeting, Jira, Google Workspace} \\
+     \textbf{Certifications}{: Tableau Desktop Specialist (in progress); Microsoft Excel Associate (MO-210)} \\
+     \textbf{Languages}{: English (native), Spanish (conversational)}
+    }}
+ \end{itemize}
+
+%-------------------------------------------
+\end{document}

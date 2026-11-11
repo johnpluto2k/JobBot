@@ -1,0 +1,51 @@
+SAMPLE JOB POSTING (fictional company, for trying out the tailoring workflow)
+
+Data Analyst, Network Planning (New Graduate)
+Northwind Logistics -- Chicago, IL (hybrid, 3 days a week in office)
+Start date: Summer 2027
+Posting ID: NWL-2027-0142
+
+About Northwind Logistics
+Northwind Logistics is a regional freight carrier moving less-than-truckload
+shipments across nine Midwestern states. Our Network Planning team decides
+where freight goes, which carriers move it, and how many people each
+warehouse needs on each shift.
+
+About the role
+You will join Network Planning as a full-time Data Analyst. Planners will
+come to you with questions such as "why is this region missing its delivery
+windows?" and you will find the answer in our shipment data, explain it
+plainly, and build the report that keeps the question answered.
+
+What you will do
+- Write SQL against our shipment, carrier, and warehouse staffing databases
+  to answer planners' questions about on-time delivery and cost.
+- Build and maintain Tableau dashboards used in the weekly network review.
+- Help forecast weekly freight volume by region so warehouses can staff ahead.
+- Automate recurring reports and reconciliations in Python or Excel.
+- Check data quality: find duplicate, missing, or mismatched records and work
+  with the source teams to fix them.
+- Present findings to planners and operations managers who are not analysts.
+
+What we are looking for
+- Bachelor's degree by June 2027 in Information Systems, Analytics,
+  Statistics, Supply Chain, Industrial Engineering, or a related field.
+- Working SQL: joins, aggregations, and window functions.
+- Experience with a dashboard tool (Tableau preferred; Power BI is fine).
+- Comfort in Excel, including PivotTables and lookups.
+- Clear writing and the ability to explain a number to someone in operations.
+
+Nice to have
+- Python (pandas) for data cleaning or automation.
+- Coursework or a project in forecasting or operations management.
+- An internship or part-time job in logistics, retail, or warehouse operations.
+
+Pay and benefits
+$62,000 - $70,000 a year, depending on experience. Health, dental, and vision
+insurance; 401(k) with company match; 15 days of paid time off.
+
+How to apply
+Submit a one-page resume and a cover letter at careers.northwind-logistics.example.
+Applications are reviewed in the order they arrive.
+
+Northwind Logistics is an equal opportunity employer.
